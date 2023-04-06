@@ -33,8 +33,8 @@ import {
 import {deployFlashLoan} from "./helpers/deployHelper";
 import {hre} from "./constant";
 import {
-  WETH_TOKEN, 
-  DAI_TOKEN, 
+  WETH_TOKEN,
+  DAI_TOKEN,
 } from "./constant";
 import {
   registryToken, 
@@ -194,9 +194,9 @@ async function main() {
     showUserAccountData(accountData);
     let userTotalCollaterBase = getTotalCollateralBase(accountData);
     let userTotalDebtBase = getTotalDebtBase(accountData);
-    console.log("Now user leverage = %d", num2Fixed(userTotalCollaterBase.div(WETHValue), 8));
+    let calcLeverage = userTotalCollaterBase.mul(1e8).div(WETHValue)
+    console.log("Now user leverage = %d", num2Fixed(calcLeverage, 8));
     // end
-  
 }
   
 // We recommend this pattern to be able to use async/await everywhere
