@@ -30,7 +30,7 @@ export function getToken(key: string): Token {
  * @param outToken out token
  * @param slippageTolerance tolerable slippage
  */
- export async function swapRoute(inToken: string, amountIn: string, outToken: string, slippageTolerance: Percent): Promise<SwapRoute | null> {
+export async function swapRoute(inToken: string, amountIn: string, outToken: string, slippageTolerance: Percent): Promise<SwapRoute | null> {
     const IN_TOKEN = getToken(inToken);
     // console.log(IN_TOKEN);
     const OUT_TOKEN = getToken(outToken);
@@ -52,6 +52,33 @@ export function getToken(key: string): Token {
         ),
         OUT_TOKEN,
         TradeType.EXACT_INPUT,
+        options,
+        alphaRouterConfig
+    )
+}
+
+export async function swapRouteExactOutPut(inToken: string, amountOut: string, outToken: string, slippageTolerance: Percent): Promise<SwapRoute | null> {
+    const IN_TOKEN = getToken(inToken);
+    // console.log(IN_TOKEN);
+    const OUT_TOKEN = getToken(outToken);
+    // console.log(OUT_TOKEN);
+
+    if (IN_TOKEN === undefined || OUT_TOKEN === undefined) throw 'incorrect inToken or outToken';
+
+    const options: SwapOptionsSwapRouter02 = {
+        recipient: WALLET_ADDRESS,
+        slippageTolerance: slippageTolerance,
+        deadline: Math.floor(Date.now() / 1000 + 1800),
+        type: SwapType.SWAP_ROUTER_02
+    }
+    // console.log("Begin to route");
+    return router.route(
+        CurrencyAmount.fromRawAmount(
+            OUT_TOKEN,
+            amountOut
+        ),
+        IN_TOKEN,
+        TradeType.EXACT_OUTPUT,
         options,
         alphaRouterConfig
     )
