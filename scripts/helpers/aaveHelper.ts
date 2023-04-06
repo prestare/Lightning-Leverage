@@ -46,7 +46,7 @@ export const apporve2Borrow = async (debtToken: Contract, user: Signer, flashLoa
 
 export const checkBorrowAllowance = async (debtToken: Contract, userAddress: string, flashLoanAddress: string) => {
     const borrowAllowance = await debtToken.borrowAllowance(userAddress, flashLoanAddress);
-    console.log("borrowAllowance is ", borrowAllowance);
+    // console.log("borrowAllowance is ", borrowAllowance);
 }
 
 export const initAavePriceOracle = async (signer: Signer) => {
@@ -67,7 +67,7 @@ export const getMaxLeverageOnAAVE =async (asset: string, POOL: Contract, TokenNa
     let assetConfig = (await POOL.getConfiguration(asset)).data;
     let assetLTV = getLtv(assetConfig);
     // MAX Leverage = 1 / (1 - LTV)
-    let maxleverage = getMaxLeverage(assetLTV);
+    let maxleverage = await getMaxLeverage(assetLTV);
     console.log("   According to the AAVE %s Asset Configuration:", TokenName);
     console.log("       The Maximum leverage abilidity = ", maxleverage.toString());
     return maxleverage;
@@ -78,3 +78,35 @@ export const calcFlashLoanFee = async (amount: BigNumber) => {
     let fee = amount.mul(Premium).div(10000);
     return fee;   
 }
+
+// export interface AccountData {
+//     totalCollateralBase : BigNumber;
+//     totalDebtBase : BigNumber;
+//     availableBorrowsBase : BigNumber;
+//     currentLiquidationThreshold : BigNumber;
+//     ltv : BigNumber;
+//     healthFactor : BigNumber;
+// }
+export const getTotalCollateralBase = (accountData: any): BigNumber => {
+    return accountData[0];
+}
+
+export const getTotalDebtBase = (accountData: any): BigNumber => {
+    return accountData[1];
+}
+
+export const showUserAccountData = async (accountData: any) => {
+    console.log("");
+    console.log("User Account Data:");
+    // console.log(accountData[0]);
+    console.log("totalCollateralBase =", num2Fixed(accountData[0], 8));
+    console.log("totalDebtBase =", num2Fixed(accountData[1], 8));
+    console.log("availableBorrowsBase =", num2Fixed(accountData[2], 8));
+    console.log("currentLiquidationThreshold = %d%", num2Fixed(accountData[3], 2));
+    console.log("ltv = %d%", num2Fixed(accountData[4], 2));
+}
+
+export const num2Fixed = (number: BigNumber, decimal: number): string => {
+    return ethers.utils.formatUnits(number, decimal).toString() 
+}
+

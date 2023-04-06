@@ -1,19 +1,19 @@
-import { ethers } from "hardhat";
+import { HardhatRuntimeEnvironment } from 'hardhat/types';
+import { BigNumber, Contract, ethers, Signer } from 'ethers';
+import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
+import { impersonateAccount } from "@nomicfoundation/hardhat-network-helpers";
+import { 
+  poolAddressProvider, 
+  WALLET_ADDRESS
+} from './address';
+import { deployFlashLoan } from './helpers/deployHelper';
 
+const hre: HardhatRuntimeEnvironment = require('hardhat');
 async function main() {
-  const currentTimestampInSeconds = Math.round(Date.now() / 1000);
-  const unlockTime = currentTimestampInSeconds + 60;
-
-  const lockedAmount = ethers.utils.parseEther("0.001");
-
-  const Lock = await ethers.getContractFactory("Lock");
-  const lock = await Lock.deploy(unlockTime, { value: lockedAmount });
-
-  await lock.deployed();
-
-  console.log(
-    `Lock with ${ethers.utils.formatEther(lockedAmount)}ETH and unlock timestamp ${unlockTime} deployed to ${lock.address}`
-  );
+  await impersonateAccount(WALLET_ADDRESS);
+  const fakeSigner: SignerWithAddress = await hre.ethers.getSigner(WALLET_ADDRESS);
+  const flashLoan = await deployFlashLoan(fakeSigner);
+  console.log("Now flash loan contract deployed to: ", flashLoan.address);
 }
 
 // We recommend this pattern to be able to use async/await everywhere
