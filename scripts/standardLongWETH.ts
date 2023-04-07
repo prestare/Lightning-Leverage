@@ -176,11 +176,13 @@ async function main() {
 
     // const single = true;
 
-    // params: mode+single+expectAmountOut+path
-    const params = ethers.utils.solidityPack(["uint8", "bool", "uint256", "bytes"], [mode, single, minimumAmount.toString(), path]);
-    
+    // function AaveOperation(bool single,uint256 amountIn,uint256 minimumAmount,bytes memory path)
+    let params = ethers.utils.defaultAbiCoder.encode(["bool", "uint256", "uint256", "bytes"], [ single, flashloanAmount, minimumAmount.toString(), path]);
+    params = ethers.utils.solidityPack(["bytes4", "bytes"], ["0x91431dec", params]);
+
     console.log("");
     console.log("Transaction Begin...");
+    
     const tx2 = await AAVE_POOL.connect(fakeSigner).flashLoan(
       flashLoan.address,
       assets,

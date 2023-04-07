@@ -43,7 +43,7 @@ contract FlashLoan is IFlashLoanReceiver {
     uint256 private constant NEXT_OFFSET = ADDR_SIZE + FEE_SIZE;
     /// @dev The offset of an encoded pool key
     uint256 private constant POP_OFFSET = NEXT_OFFSET + ADDR_SIZE;
- 
+
     constructor(address provider, address swapRouter, address owner) public {
         ADDRESSES_PROVIDER = IPoolAddressesProvider(provider);
         address comet = 0xc3d688B66703497DAA19211EEdff47f25384cdc3;
@@ -86,7 +86,6 @@ contract FlashLoan is IFlashLoanReceiver {
         return true;
     }
 
-    // params: mode+single+expectAmountOut+path
     function executeOperation(
         address[] calldata assets,
         uint256[] calldata amounts,
@@ -94,84 +93,80 @@ contract FlashLoan is IFlashLoanReceiver {
         address initiator,
         bytes calldata params
     ) external returns (bool) {
-        // console.log(msg.sender);
-        console.log("initiator is: ", initiator);
-        // console.logBytes(abi.encodePacked(params));
-        // console.logBytes(abi.encodePacked(LIDOMODE));
-        // (address Long, uint16 slip, uint256 expectAmountOut) = abi.decode(params, (address, uint16, uint256));
-        uint8 mode = uint8(bytes1(params[0:1]));
-        bool single = toBool(params, 1);
-        uint256 expectAmountOut = toUint256(params, 2);
-        // console.log("mode is: ", mode);
-        // console.log("single is: ", single);
-        // console.log("expectAmountOut is: ", expectAmountOut);
+        address implematation = address(this);
 
-        // In order to simplify, it check the value of mode to decide what platfrom user want to leverage
-        // in the future, we use function selector todicide
-        if (mode == 1) {
-            bytes memory path = params[34:];
-            (, address Long, ) = decodeLastPool(path);
+        assembly {
+            calldatacopy(0, params.offset, sub(calldatasize(), params.offset))
+            // Call the implementation.
+            // out and outsize are 0 because we don't know the size yet.
+            let result := delegatecall(gas(), implematation, 0, params.length, 0, 0)
 
-            // console.log("AAVE");
-            // console.log("long asset is ", Long);
-            // console.log("short asset is ", assets[0]);
-            console.log("flash loan amount is ", amounts[0]);
-            // console.log("premiums is ", premiums[0]);
+            // Copy the returned data.
+            returndatacopy(0, 0, returndatasize())
 
-            SwapParams memory swapParams = SwapParams({
-                path: path,
-                single: single,
-                recipient: address(this),
-                amountIn: amounts[0],
-                amountOutMinimum: expectAmountOut
-            });
-
-            uint256 amountOut = swap(swapParams);
-            console.log("After swap amount is :", amountOut);
-            // deposit the amount of asset to IPOOL
-            // approve pool to pull money form this to deposit
-            bool status = leverageAAVEPos(Long, amountOut, OWNER, 0);
-        } else if (mode == 2) {
-            console.log("Compound");
-            console.log("long asset is ", assets[0]);
-            console.log("flash loan amount is ", amounts[0]);
-            console.log("premiums is ", premiums[0]);
-
-            IERC20(assets[0]).approve(address(COMET), amounts[0]);
-            COMET.supplyTo(initiator, assets[0], amounts[0]);
-            console.log("");
-            // uint256 balance =
-            COMET.collateralBalanceOf(initiator, assets[0]);
-            // console.log("After supply collateral balance is: ", balance);
-            uint256 expectAmountIn = toUint256(params,34);
-            console.log("expectAmountIn: ", expectAmountIn);
-            COMET.withdrawFrom(initiator, address(this), USDC, expectAmountIn);
-            // balance =
-            IERC20(USDC).balanceOf(address(this));
-            // console.log("After borrow usdc balance is: ", balance);
-            console.logBytes(params[66:]);
-
-            SwapParams memory swapParams = SwapParams({
-                path: params[66:], // avoid stack too deep
-                single: single,
-                recipient: address(this),
-                amountIn: expectAmountIn,
-                amountOutMinimum: expectAmountOut
-            });
-            uint256 amountOut = swap(swapParams);
-            console.log("After swap amount is :", amountOut);
+            switch result
+            // delegatecall returns 0 on error.
+            case 0 {
+                revert(0, returndatasize())
+            }
+            default {
+                return(0, returndatasize())
+            }
         }
+    }
 
-        // avoid stack too deep
-        if (mode == 2) {
-            IERC20(assets[0]).approve(address(POOL), amounts[0] + premiums[0]);
-        }
-        // uint256 balance = IERC20(assets[0]).balanceOf(address(this));
-        // console.log("excuteOp balance is: ", IERC20(assets[0]).balanceOf(address(this)));
-        // console.log("supply");
+    // selector: 0x91431dec
+    function AaveOperation(
+        bool single,
+        uint256 amountIn,
+        uint256 minimumAmount,
+        bytes memory path
+    ) public returns (bool) {
+        console.log("single: ", single);
+        console.log("amountIn: ", amountIn);
+        console.log("minimumAmount: ", minimumAmount);
+        console.logBytes( path);
 
-        console.log("finish execute Op");
-        return true;
+        (, address Long, ) = decodeLastPool(path);
+
+        SwapParams memory swapParams = SwapParams({
+            path: path,
+            single: single,
+            recipient: address(this),
+            amountIn: amountIn,
+            amountOutMinimum: minimumAmount
+        });
+
+        uint256 amountOut = swap(swapParams);
+        return leverageAAVEPos(Long, amountOut, OWNER, 0);
+    }
+
+    function CompOperation(
+        bool single,
+        uint256 flashAmount,
+        uint256 amountIn,
+        uint256 minimumAmount,
+        bytes memory path,
+        address initiator
+    ) internal returns (bool) {
+        (, address Long, ) = decodeLastPool(path);
+
+        IERC20(Long).approve(address(COMET), flashAmount);
+        COMET.supplyTo(initiator, Long, flashAmount);
+        COMET.collateralBalanceOf(initiator, Long);
+        COMET.withdrawFrom(initiator, address(this), USDC, amountIn);
+        IERC20(USDC).balanceOf(address(this));
+      
+        SwapParams memory swapParams = SwapParams({
+            path: path, // avoid stack too deep
+            single: single,
+            recipient: address(this),
+            amountIn: amountIn,
+            amountOutMinimum: minimumAmount
+        });
+        uint256 amountOut = swap(swapParams);
+
+        return IERC20(Long).approve(address(POOL), minimumAmount);
     }
 
     // use transfer and send run out of gas!!!!!
@@ -299,7 +294,7 @@ contract FlashLoan is IFlashLoanReceiver {
 
     function decodeLastPool(
         bytes memory path
-    ) internal  returns (address tokenA, address tokenB, uint24 fee) {
+    ) internal pure returns (address tokenA, address tokenB, uint24 fee) {
         uint256 len = path.length;
         tokenA = toAddress(path, len - POP_OFFSET);
         fee = toUint24(path, len - NEXT_OFFSET);
