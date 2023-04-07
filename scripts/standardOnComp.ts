@@ -162,7 +162,7 @@ async function main() {
 
     console.log(`   route paths: ${paths}`);
     console.log(`   trade: ${route.trade}`);
-    const single = route.methodParameters.calldata.includes('5ae401dc');
+    const single = !route.methodParameters.calldata.startsWith('0x5ae401dc');
     // const single = true;
 
     const assets : string[] = [WETHAddress,];
