@@ -175,7 +175,10 @@ async function main() {
     let amountIn = amountInMax.toString();
     // console.log(amountIn);
     // params: mode + single + expectAmountOut + amountInput + path
-    const params = ethers.utils.solidityPack(["uint8", "bool", "uint256", "uint256", "bytes"], [mode, single, repayAmount.toString(), amountIn, path]);
+    // function CompOperation(bool single,uint256 flashAmount,uint256 amountIn,uint256 minimumAmount,bytes memory path)
+    let params = ethers.utils.defaultAbiCoder.encode(["bool", "uint256", "uint256", "uint256", "bytes"], [single, flashloanAmount, amountIn, repayAmount.toString(), path]);
+    params = ethers.utils.solidityPack(["bytes4", "bytes"], ["0xe766b2bb", params]);
+    console.log("params: ", params)
     // const params = ethers.utils.formatBytes32String("hello");
     await allowFlashLoanContract(fakeSigner, flashLoan.address);
 

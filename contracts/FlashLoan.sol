@@ -96,7 +96,7 @@ contract FlashLoan is IFlashLoanReceiver {
         address implematation = address(this);
 
         assembly {
-            calldatacopy(0, params.offset, sub(calldatasize(), params.offset))
+            calldatacopy(0, params.offset, params.length)
             // Call the implementation.
             // out and outsize are 0 because we don't know the size yet.
             let result := delegatecall(gas(), implematation, 0, params.length, 0, 0)
@@ -141,14 +141,15 @@ contract FlashLoan is IFlashLoanReceiver {
         return leverageAAVEPos(Long, amountOut, OWNER, 0);
     }
 
+    // selector: 0xe766b2bb
     function CompOperation(
         bool single,
         uint256 flashAmount,
         uint256 amountIn,
         uint256 minimumAmount,
-        bytes memory path,
-        address initiator
-    ) internal returns (bool) {
+        bytes memory path
+    ) public returns (bool) {
+        address initiator = tx.origin;
         (, address Long, ) = decodeLastPool(path);
 
         IERC20(Long).approve(address(COMET), flashAmount);
