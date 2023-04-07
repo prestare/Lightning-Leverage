@@ -26,7 +26,7 @@ export const initAAVEContract = async (signer: Signer) => {
     WETH_GATEWAY = new ethers.Contract(WETH_GATEWAY_ADDRESS, WETHGateABI, signer);
 }
 
-export const aTokenContract = (aTokenAddress: string, signer: SignerWithAddress) => {
+export const aTokenContract = (aTokenAddress: string, signer: Signer) => {
     return (new ethers.Contract(aWETHAddress, aTokenAbi, signer));
 }
 
