@@ -40,6 +40,8 @@ export const DAI_TOKEN = new Token(
 )
 
 export const mainnetUrl = 'https://eth-mainnet.g.alchemy.com/v2/azWjXVXAgsi9y3eCTE7hhJqfDfsNY8qC';
+// export const mainnetUrl = 'http://127.0.0.1:8545/';
+
 export const mainnetProvider = new ethers.providers.JsonRpcProvider(mainnetUrl);
 
 export const router = new AlphaRouter({

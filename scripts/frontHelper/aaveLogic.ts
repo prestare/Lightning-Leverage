@@ -27,8 +27,6 @@ import {
     getMaxLeverageOnAAVE,
     showUserAccountData,
     num2Fixed,
-    getTotalCollateralBase,
-    getTotalDebtBase
 } from "../helpers/aaveHelper";
 import {deployFlashLoan} from "../helpers/deployHelper";
 import {hre, flashAssetList, mainnetProvider} from "../constant";
@@ -44,7 +42,7 @@ import {
 } from "../helpers/UniswapQuoter";
 
 var tokenContractMap: Map<string, Contract> = new Map();
-var atokenContractMap: Map<string, Contract> = new Map();
+export var atokenContractMap: Map<string, Contract> = new Map();
 
 export const initTokenAddress = (provider: Signer) => {
     for (const key in flashAssetList) {
@@ -207,13 +205,15 @@ export const execLeverage = async (user: SignerWithAddress,flashAmount:string, m
     await checkBorrowAllowance(debtToken, user.address, LIGHTNING_LEVERAGE_ADDRESS);
     
     const assets : string[] = [leverMsg.shortAssetAddress!,];
-    const amounts : ethers.BigNumber[] = [BigNumber.from(flashLoanAmount), ]; 
+    const amounts : ethers.BigNumber[] = [flashLoanAmount, ]; 
     const interestRateModes : ethers.BigNumber[] = [BigNumber.from("2"), ];
     // this params is used to meet the condition in executeOperation
     // params: 1. address is long asset address 2. Slippage 500 ~ 0.05% 3000 ~ 0.3% 10000 ~ 1%
     // const poolFee = 3000;
     const mode = 1;
-    const params = ethers.utils.solidityPack(["uint8", "bool", "uint256", "bytes"], [mode, single, minimumAmount.toString(), path]);
+    // const params = ethers.utils.solidityPack(["uint8", "bool", "uint256", "bytes"], [mode, single, minimumAmount.toString(), path]);
+    let params = ethers.utils.defaultAbiCoder.encode(["bool", "uint256", "uint256", "bytes"], [ single, flashLoanAmount, minimumAmount.toString(), path]);
+    params = ethers.utils.solidityPack(["bytes4", "bytes"], ["0x91431dec", params]);
 
     console.log("");
     console.log("Transaction Begin...");
@@ -228,11 +228,11 @@ export const execLeverage = async (user: SignerWithAddress,flashAmount:string, m
     );
     var accountData = await AAVE_POOL.getUserAccountData(user.address);
     showUserAccountData(accountData);
-    // let userTotalCollaterBase = getTotalCollateralBase(accountData);
+    // let userTotalCollaterBase = getTotalCollatralBase(accountData);
     // let userTotalDebtBase = getTotalDebtBase(accountData);
     // let calcLeverage = userTotalCollaterBase.mul(1e8).div(oldValue)
     // console.log("Now user leverage = %d", num2Fixed(calcLeverage, 8));
-} 
+}
 
 async function main() {
     await impersonateAccount(WALLET_ADDRESS);
@@ -240,7 +240,7 @@ async function main() {
 
     await initAAVEGlobal(user);
     await initTokenAddress(user);
-    // await helpUserDeposit(user, "WETH");
+
     console.log("Now user address: ", user.address);
     var msg: string[] = ["AAVE", "WETH", "WETH", "DAI"];
     var value: string[] = await calcUserAAVEMaxLeverage(user, msg);
@@ -257,18 +257,3 @@ main().catch((error) => {
     console.error(error);
     process.exitCode = 1;
 });
-
-
-const helpUserDeposit = async (user:SignerWithAddress, tokenName: string) => {
-    const depositAmount = ethers.utils.parseUnits("2", "ether");
-    // deposit eth in aave by WETHGateWay function
-    console.log("Now, User deposit %d %s token in to AAVE",num2Fixed(depositAmount,18), "ETH");
-    const tx1 =  await WETH_GATEWAY.connect(user).depositETH(user.address,user.address, 0, {value: depositAmount});
-    console.log("After Deposit...");
-    // check if we actually have one aWETH
-    const aToken = atokenContractMap.get(tokenName)!;
-    const aTokenBalance = await getUserATokenBalance(aToken, user.address);
-    console.log("   user a%sBalance is ", "ETH", num2Fixed(aTokenBalance, 18));
-    let accountData = await AAVE_POOL.getUserAccountData(user.address);
-    showUserAccountData(accountData);
-}

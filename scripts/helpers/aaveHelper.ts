@@ -46,7 +46,7 @@ export const apporve2Borrow = async (debtToken: Contract, user: Signer, flashLoa
 
 export const checkBorrowAllowance = async (debtToken: Contract, userAddress: string, flashLoanAddress: string) => {
     const borrowAllowance = await debtToken.borrowAllowance(userAddress, flashLoanAddress);
-    // console.log("borrowAllowance is ", borrowAllowance);
+    console.log("borrowAllowance is ", borrowAllowance);
 }
 
 export const initAavePriceOracle = async (signer: Signer) => {
