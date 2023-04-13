@@ -1,25 +1,25 @@
 import { BigNumber, Contract, ethers } from 'ethers';
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { impersonateAccount } from "@nomicfoundation/hardhat-network-helpers";
-import { 
-  WETHAddress,
-  WALLET_ADDRESS,
-  USDCAddress,
-} from './address';
-import {hre} from "./constant";
-import {deployFlashLoan} from "./helpers/deployHelper";
 import {
-    calcUserAssetValue, 
+    WETHAddress,
+    WALLET_ADDRESS,
+    USDCAddress,
+} from './address';
+import { hre } from "./constant";
+import { deployFlashLoan } from "./helpers/deployHelper";
+import {
+    calcUserAssetValue,
     calcNeedBorrowValue,
     getAmountInleast,
     calcLeveragePosition,
     calcNeedBorrowAmount,
     adoptTokenDicimals
 } from "./helpers/leverage";
-import { 
+import {
     initCompContract,
-    supplyWETH, 
-    getUserCollateralBalance, 
+    supplyWETH,
+    getUserCollateralBalance,
     getAssetPriceOnComp,
     getMaxLeverageOnComp,
     allowFlashLoanContract,
@@ -33,16 +33,16 @@ import {
     getAssetPriceOnAAVE
 } from "./helpers/aaveHelper";
 import {
-    WETH_TOKEN, 
-    USDC_TOKEN, 
-  } from "./constant";
+    WETH_TOKEN,
+    USDC_TOKEN,
+} from "./constant";
 import {
-    registryToken, 
+    registryToken,
     swapRoute,
     swapRouteExactOutPut,
     encodeRouteToPath
 } from "./helpers/UniswapQuoter";
-import {Percent} from '@uniswap/sdk-core';
+import { Percent } from '@uniswap/sdk-core';
 import { COMET } from "./helpers/compHelper";
 
 async function main() {
@@ -83,7 +83,7 @@ async function main() {
     console.log("");
     console.log("Now calculate flash loan params...");
     let userleverage = 4;
-    console.log("   Current leverage = ", userleverage);    
+    console.log("   Current leverage = ", userleverage);
     // we deposit WETH in comet and borrow USDC 
 
     // calculate how much we nee to borrow to satify user leverage
@@ -103,7 +103,7 @@ async function main() {
     let USDCPrice = await getAssetPriceOnAAVE(USDCAddress);
     console.log("   %s Price = $%d", USDCSymbol, num2Fixed(USDCPrice, 8));
 
-    let flashLoanFee = await calcFlashLoanFee(flashloanAmount);    
+    let flashLoanFee = await calcFlashLoanFee(flashloanAmount);
     console.log("   AAVE Flash Loan fee %d", flashLoanFee);
     // how much WETH we need to repay falsh loan
     let repayAmount = flashloanAmount.add(flashLoanFee);
@@ -124,7 +124,7 @@ async function main() {
     console.log("   User's slippage = %d%", slippageTolerance.toFixed());
     let amountInMax = getAmountInleast(needBorrowAmount, slippage);
     console.log("       According to the slippage, the max input should be = %d", num2Fixed(amountInMax, 6));
-    
+
     console.log("");
     console.log("Quoter Asset Swap");
     console.log("   Registry Token...");
@@ -132,14 +132,14 @@ async function main() {
     registryToken('WETH', WETH_TOKEN);
     registryToken('USDC', USDC_TOKEN);
     const route = await swapRouteExactOutPut(
-      'USDC',
-      repayAmount.toString(),
-      'WETH',
-      slippageTolerance
+        'USDC',
+        repayAmount.toString(),
+        'WETH',
+        slippageTolerance
     );
 
     if (route == null || route.methodParameters == undefined) throw 'No route loaded';
-    
+
     // console.log(...route.trade.swaps);
     const { route: routePath, inputAmount } = route.trade.swaps[0];
     const maximumAmount = route.trade.maximumAmountIn(slippageTolerance, inputAmount).quotient;
@@ -165,9 +165,9 @@ async function main() {
     const single = !route.methodParameters.calldata.startsWith('0x5ae401dc');
     // const single = true;
 
-    const assets : string[] = [WETHAddress,];
-    const amounts : ethers.BigNumber[] = [flashloanAmount, ]; 
-    const interestRateModes : ethers.BigNumber[] = [BigNumber.from("0"), ];
+    const assets: string[] = [WETHAddress,];
+    const amounts: ethers.BigNumber[] = [flashloanAmount,];
+    const interestRateModes: ethers.BigNumber[] = [BigNumber.from("0"),];
     // this params is used to meet the condition in executeOperation
     // params: 1. address is long asset address 2. Slippage 500 ~ 0.05% 3000 ~ 0.3% 10000 ~ 1%
     // const poolFee = 3000;
@@ -175,9 +175,9 @@ async function main() {
     let amountIn = amountInMax.toString();
     // console.log(amountIn);
     // params: mode + single + expectAmountOut + amountInput + path
-    // function CompOperation(bool single,uint256 flashAmount,uint256 amountIn,uint256 minimumAmount,bytes memory path)
-    let params = ethers.utils.defaultAbiCoder.encode(["bool", "uint256", "uint256", "uint256", "bytes"], [single, flashloanAmount, amountIn, repayAmount.toString(), path]);
-    params = ethers.utils.solidityPack(["bytes4", "bytes"], ["0xe766b2bb", params]);
+    // function CompOperation(tuple(bytes,bool,uint256,uint256),uint256)
+    let params = ethers.utils.defaultAbiCoder.encode(["tuple(bytes,bool,uint256,uint256)", "uint256"], [[path, single, amountIn, repayAmount.toString()], flashloanAmount]);
+    params = ethers.utils.solidityPack(["bytes4", "bytes"], ["0xfe235f79", params]);
     console.log("params: ", params)
     // const params = ethers.utils.formatBytes32String("hello");
     await allowFlashLoanContract(fakeSigner, flashLoan.address);
@@ -194,15 +194,14 @@ async function main() {
 
     let borrowBalanceOf = await COMET.borrowBalanceOf(fakeSigner.address);
     console.log("After leverage, user borrowBalanceOf is: ", borrowBalanceOf);
-    userCollateralBalance = await COMET.collateralBalanceOf(fakeSigner.address, WETHAddress); 
+    userCollateralBalance = await COMET.collateralBalanceOf(fakeSigner.address, WETHAddress);
     console.log("After leverage, user collateral balance is: ", userCollateralBalance);
 
 }
-  
+
 // We recommend this pattern to be able to use async/await everywhere
 // and properly handle errors.
 main().catch((error) => {
     console.error(error);
     process.exitCode = 1;
 });
-  

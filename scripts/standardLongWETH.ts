@@ -176,9 +176,9 @@ async function main() {
 
     // const single = true;
 
-    // function AaveOperation(bool single,uint256 amountIn,uint256 minimumAmount,bytes memory path)
-    let params = ethers.utils.defaultAbiCoder.encode(["bool", "uint256", "uint256", "bytes"], [ single, flashloanAmount, minimumAmount.toString(), path]);
-    params = ethers.utils.solidityPack(["bytes4", "bytes"], ["0x91431dec", params]);
+    // function AaveOperation(tuple(bytes,bool,uint256,uint256))
+    let params = ethers.utils.defaultAbiCoder.encode(["tuple(bytes,bool,uint256,uint256)"], [ [path,single, flashloanAmount, minimumAmount.toString()]]);
+    params = ethers.utils.solidityPack(["bytes4", "bytes"], ["0x8ecfaae0", params]);
 
     console.log("");
     console.log("Transaction Begin...");

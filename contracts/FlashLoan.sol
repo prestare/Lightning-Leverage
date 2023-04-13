@@ -14,12 +14,16 @@ import {ISwapRouter} from "@uniswap/v3-periphery/contracts/interfaces/ISwapRoute
 import "hardhat/console.sol";
 
 contract FlashLoan is IFlashLoanReceiver {
-    struct SwapParams {
+    struct BaseSwapParams {
         bytes path;
         bool single;
-        address recipient;
         uint256 amountIn;
         uint256 amountOutMinimum;
+    }
+
+    struct SwapParams {
+        BaseSwapParams base;
+        address recipient;
     }
 
     IPoolAddressesProvider public override ADDRESSES_PROVIDER;
@@ -44,7 +48,7 @@ contract FlashLoan is IFlashLoanReceiver {
     /// @dev The offset of an encoded pool key
     uint256 private constant POP_OFFSET = NEXT_OFFSET + ADDR_SIZE;
 
-    constructor(address provider, address swapRouter, address owner) public {
+    constructor(address provider, address swapRouter, address owner) {
         ADDRESSES_PROVIDER = IPoolAddressesProvider(provider);
         address comet = 0xc3d688B66703497DAA19211EEdff47f25384cdc3;
         COMET = IComet(comet);
@@ -99,7 +103,14 @@ contract FlashLoan is IFlashLoanReceiver {
             calldatacopy(0, params.offset, params.length)
             // Call the implementation.
             // out and outsize are 0 because we don't know the size yet.
-            let result := delegatecall(gas(), implematation, 0, params.length, 0, 0)
+            let result := delegatecall(
+                gas(),
+                implematation,
+                0,
+                params.length,
+                0,
+                0
+            )
 
             // Copy the returned data.
             returndatacopy(0, 0, returndatasize())
@@ -115,59 +126,42 @@ contract FlashLoan is IFlashLoanReceiver {
         }
     }
 
-    // selector: 0x91431dec
+    // selector: 0x8ecfaae0
     function AaveOperation(
-        bool single,
-        uint256 amountIn,
-        uint256 minimumAmount,
-        bytes memory path
+        BaseSwapParams calldata baseSwapParams
     ) public returns (bool) {
-        console.log("single: ", single);
-        console.log("amountIn: ", amountIn);
-        console.log("minimumAmount: ", minimumAmount);
-        console.logBytes( path);
-
-        (, address Long, ) = decodeLastPool(path);
+        (, address Long, ) = decodeLastPool(baseSwapParams.path);
 
         SwapParams memory swapParams = SwapParams({
-            path: path,
-            single: single,
-            recipient: address(this),
-            amountIn: amountIn,
-            amountOutMinimum: minimumAmount
+            base: baseSwapParams,
+            recipient: address(this)
         });
 
         uint256 amountOut = swap(swapParams);
         return leverageAAVEPos(Long, amountOut, OWNER, 0);
     }
 
-    // selector: 0xe766b2bb
+    // selector: 0xfe235f79
     function CompOperation(
-        bool single,
-        uint256 flashAmount,
-        uint256 amountIn,
-        uint256 minimumAmount,
-        bytes memory path
+        BaseSwapParams calldata base,
+        uint256 flashAmount
     ) public returns (bool) {
         address initiator = tx.origin;
-        (, address Long, ) = decodeLastPool(path);
+        (, address Long, ) = decodeLastPool(base.path);
 
         IERC20(Long).approve(address(COMET), flashAmount);
         COMET.supplyTo(initiator, Long, flashAmount);
         COMET.collateralBalanceOf(initiator, Long);
-        COMET.withdrawFrom(initiator, address(this), USDC, amountIn);
+        COMET.withdrawFrom(initiator, address(this), USDC, base.amountIn);
         IERC20(USDC).balanceOf(address(this));
-      
-        SwapParams memory swapParams = SwapParams({
-            path: path, // avoid stack too deep
-            single: single,
-            recipient: address(this),
-            amountIn: amountIn,
-            amountOutMinimum: minimumAmount
-        });
-        uint256 amountOut = swap(swapParams);
 
-        return IERC20(Long).approve(address(POOL), minimumAmount);
+        SwapParams memory swapParams = SwapParams({
+            base: base,
+            recipient: address(this)
+        });
+        swap(swapParams);
+
+        return IERC20(Long).approve(address(POOL), base.amountOutMinimum);
     }
 
     // use transfer and send run out of gas!!!!!
@@ -212,19 +206,19 @@ contract FlashLoan is IFlashLoanReceiver {
     function swap(
         SwapParams memory swapParams
     ) public returns (uint256 amountOut) {
-        if (swapParams.single) {
+        if (swapParams.base.single) {
             amountOut = swapExactInputSingle(
-                swapParams.path,
+                swapParams.base.path,
                 swapParams.recipient,
-                swapParams.amountIn,
-                swapParams.amountOutMinimum
+                swapParams.base.amountIn,
+                swapParams.base.amountOutMinimum
             );
         } else {
             amountOut = swapExactInput(
-                swapParams.path,
+                swapParams.base.path,
                 swapParams.recipient,
-                swapParams.amountIn,
-                swapParams.amountOutMinimum
+                swapParams.base.amountIn,
+                swapParams.base.amountOutMinimum
             );
         }
     }
