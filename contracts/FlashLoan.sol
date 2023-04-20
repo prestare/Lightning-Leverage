@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: No License
 pragma solidity ^0.8.0;
 
+import {IFlashLoanSimpleReceiver} from "./interfaces/AAVE/IFlashLoanSimpleReceiver.sol";
 import {IFlashLoanReceiver} from "./interfaces/AAVE/IFlashLoanReceiver.sol";
 import {IPoolAddressesProvider} from "./interfaces/AAVE/IPoolAddressesProvider.sol";
 import {IPool} from "./interfaces/AAVE/IPool.sol";
@@ -9,11 +10,12 @@ import {IWETH} from "./interfaces/IWETH.sol";
 import {IWstETH} from "./interfaces/LIDO/IWstETH.sol";
 import {ILido} from "./interfaces/LIDO/ILido.sol";
 import {IComet} from "./interfaces/COMP/IComet.sol";
+import {IPoolDataProvider} from "./interfaces/AAVE/IPoolDataProvider.sol";
 import {ISwapRouter} from "@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol";
 
 import "hardhat/console.sol";
 
-contract FlashLoan is IFlashLoanReceiver {
+contract FlashLoan is IFlashLoanSimpleReceiver {
     struct BaseSwapParams {
         bytes path;
         bool single;
@@ -31,6 +33,7 @@ contract FlashLoan is IFlashLoanReceiver {
     ISwapRouter public SWAP_ROUTER;
 
     IPool public override POOL;
+    IPoolDataProvider public POOL_DATA_PROVIDER;
     address public OWNER;
 
     bytes32 public constant LIDOMODE = "0";
@@ -55,6 +58,7 @@ contract FlashLoan is IFlashLoanReceiver {
         SWAP_ROUTER = ISwapRouter(swapRouter);
         POOL = IPool(ADDRESSES_PROVIDER.getPool());
         OWNER = owner;
+        POOL_DATA_PROVIDER = IPoolDataProvider(ADDRESSES_PROVIDER.getPoolDataProvider());
     }
 
     /**
@@ -91,6 +95,42 @@ contract FlashLoan is IFlashLoanReceiver {
     }
 
     function executeOperation(
+        address asset,
+        uint256 amount,
+        uint256 premium,
+        address initiator,
+        bytes calldata params
+    ) external returns (bool) {
+        address implematation = address(this);
+
+        assembly {
+            calldatacopy(0, params.offset, params.length)
+            // Call the implementation.
+            // out and outsize are 0 because we don't know the size yet.
+            let result := delegatecall(
+                gas(),
+                implematation,
+                0,
+                params.length,
+                0,
+                0
+            )
+
+            // Copy the returned data.
+            returndatacopy(0, 0, returndatasize())
+
+            switch result
+            // delegatecall returns 0 on error.
+            case 0 {
+                revert(0, returndatasize())
+            }
+            default {
+                return(0, returndatasize())
+            }
+        }
+    }
+
+        function executeOperation(
         address[] calldata assets,
         uint256[] calldata amounts,
         uint256[] calldata premiums,
@@ -139,6 +179,75 @@ contract FlashLoan is IFlashLoanReceiver {
 
         uint256 amountOut = swap(swapParams);
         return leverageAAVEPos(Long, amountOut, OWNER, 0);
+    }
+
+    // selector: 0xd1397e1d
+    function AaveRepayOperation(
+        BaseSwapParams calldata base,
+        uint256 flashAmount,
+        uint256 interestRateMode
+    ) public returns (bool) {
+        (address Long, , ) = decodeFirstPool(base.path);
+        (, address Short, ) = decodeLastPool(base.path);
+        IERC20(Short).approve(address(POOL), flashAmount);
+        uint256 repayAmount = POOL.repay(Short, flashAmount, interestRateMode, tx.origin);
+        console.log("repayAmount ", repayAmount);
+
+        (address aToken, , ) = POOL_DATA_PROVIDER.getReserveTokensAddresses(Long);
+
+        console.log("aToken: ", aToken);
+        IERC20(aToken).transferFrom(tx.origin, address(this), base.amountIn);
+
+
+        uint256 withdrawAmount = POOL.withdraw(Long, base.amountIn, address(this));
+        console.log("withdrawAmount ", withdrawAmount);
+
+        SwapParams memory swapParams = SwapParams({
+            base: base,
+            recipient: address(this)
+        });
+
+        uint256 amountOut = swap(swapParams);
+        console.log("amountOut: ", amountOut);
+
+        console.log("amountOutMinimum: ", base.amountOutMinimum);
+        bool success = IERC20(Short).approve(address(POOL), amountOut);
+        require(success, "failed to approve");
+        return IERC20(Short).transfer(tx.origin, amountOut - base.amountOutMinimum);
+    }
+
+    // selector: 0x6afc18e3
+    function CompRepayOperation(
+        BaseSwapParams calldata base,
+        uint256 flashAmount
+    ) public returns (bool) {
+        (address Long, , ) = decodeFirstPool(base.path);
+        (, address Short, ) = decodeLastPool(base.path);
+        IERC20(Short).approve(address(COMET), flashAmount);
+
+        uint256 balance = IERC20(Short).balanceOf(address(this));
+        console.log("balance", balance);
+        uint256 borrowBalanceOf = COMET.borrowBalanceOf(tx.origin);
+        console.log("borrowBalanceOf1", borrowBalanceOf);
+
+        COMET.supplyTo(tx.origin, Short, flashAmount);
+        borrowBalanceOf = COMET.borrowBalanceOf(tx.origin);
+        console.log("borrowBalanceOf", borrowBalanceOf);
+        console.log("tx.origin: ", tx.origin);
+
+        COMET.withdrawFrom(tx.origin, address(this), Long, base.amountIn);
+
+        SwapParams memory swapParams = SwapParams({
+            base: base,
+            recipient: address(this)
+        });
+
+        uint256 amountOut = swap(swapParams);
+        console.log("amountOut: ", amountOut);
+
+        bool success = IERC20(Short).approve(address(POOL), base.amountOutMinimum);
+        require(success, "failed to approve");
+        return IERC20(Short).transfer(tx.origin, amountOut - base.amountOutMinimum);
     }
 
     // selector: 0xfe235f79
