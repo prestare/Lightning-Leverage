@@ -1,6 +1,7 @@
 export const poolAddressProvider: string = '0x2f39d218133AFaB8F2B819B1066c7E434Ad94E9e';
 export const AAVE_POOL_ADDRESS: string = "0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2";
 export const AAVE_Price_Oricle_Address: string = '0x54586bE62E3c3580375aE3723C145253060Ca0C2';
+export const AAVE_Pool_Data_Provider_Address: string = '0x7B4EB56E7CD4b454BA8ff71E4518426369a138a3';
 export const WETH_GATEWAY_ADDRESS: string = '0xD322A49006FC828F9B5B37Ab215F99B4E5caB19C';
 
 export const aDaiAddree: string = '0x018008bfb33d285247A21d44E50697654f754e63';
