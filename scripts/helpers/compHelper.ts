@@ -53,3 +53,47 @@ export const allowFlashLoanContract = async (signer: SignerWithAddress, flashLoa
     // let allowance = await COMET.connect(signer).allowance(signer.address, flashLoanAddress);
     // console.log("allowance is: ", allowance);
 }
+
+export const getUserBorrowCapacityBase = async (account: string) => {
+    const numAssets = await COMET.callStatic.numAssets();
+
+    const promisesAssets = [];
+    for (let i = 0; i < numAssets; i++) {
+      promisesAssets.push(COMET.callStatic.getAssetInfo(i));
+    }
+
+    const infos = await Promise.all(promisesAssets);
+    
+    const promisesCollaterals = [];
+    const promisesPrices = [];
+    for (let i = 0; i < numAssets; i++) {
+      const { asset, priceFeed } = infos[i];
+      promisesCollaterals.push(COMET.callStatic.collateralBalanceOf(account, asset));
+      promisesPrices.push(COMET.callStatic.getPrice(priceFeed));
+    }
+
+    const collateralBalances = await Promise.all(promisesCollaterals);
+    const collateralPrices = await Promise.all(promisesPrices);
+
+    const baseTokenPriceFeed = await COMET.callStatic.baseTokenPriceFeed();
+    const basePrice = +(await COMET.callStatic.getPrice(baseTokenPriceFeed)).toString() / 1e8;
+    const baseDecimals = +(await COMET.callStatic.decimals()).toString();
+
+    let collateralValueUsd = 0;
+    let totalBorrowCapacityUsd = 0;
+    for (let i = 0; i < numAssets; i++) {
+      const balance = +(collateralBalances[i].toString()) / +(infos[i].scale).toString();
+      const price = +collateralPrices[i].toString() / 1e8;
+      collateralValueUsd += balance * price;
+      totalBorrowCapacityUsd += balance * price * (+infos[i].borrowCollateralFactor.toString() / 1e18);
+    }
+
+    const borrowBalance = +(await COMET.callStatic.borrowBalanceOf(account)).toString();
+    const borrowedInUsd = borrowBalance / Math.pow(10, baseDecimals) * basePrice;
+
+    const borrowCapacityUsd = totalBorrowCapacityUsd - borrowedInUsd;
+
+    const borrowCapacityBase = borrowCapacityUsd / basePrice;
+    
+    return BigNumber.from(Math.floor(borrowCapacityBase * Math.pow(10, baseDecimals)));
+}
