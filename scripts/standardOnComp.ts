@@ -86,9 +86,6 @@ async function main() {
     console.log("   Current leverage = ", userleverage);
     // we deposit WETH in comet and borrow USDC 
 
-    // calculate how much we nee to borrow to satify user leverage
-    let newPosition = calcLeveragePosition(WETHValue, userleverage);
-    console.log("       user want to leverage up their position to $%d", newPosition.toString());
     let needFlashAmountUSD = calcNeedBorrowValue(WETHValue, userleverage);
     console.log("       so user need to flash loan (in USDC) = $%d", ethers.utils.formatUnits(needFlashAmountUSD, 8).toString());
     let needFlashAmount = calcNeedBorrowAmount(needFlashAmountUSD, WETHPrice);
@@ -165,9 +162,8 @@ async function main() {
     const single = !route.methodParameters.calldata.startsWith('0x5ae401dc');
     // const single = true;
 
-    const assets: string[] = [WETHAddress,];
-    const amounts: ethers.BigNumber[] = [flashloanAmount,];
-    const interestRateModes: ethers.BigNumber[] = [BigNumber.from("0"),];
+    const asset: string = WETHAddress;
+    const amount: ethers.BigNumber = flashloanAmount;
     // this params is used to meet the condition in executeOperation
     // params: 1. address is long asset address 2. Slippage 500 ~ 0.05% 3000 ~ 0.3% 10000 ~ 1%
     // const poolFee = 3000;
@@ -182,12 +178,10 @@ async function main() {
     // const params = ethers.utils.formatBytes32String("hello");
     await allowFlashLoanContract(fakeSigner, flashLoan.address);
 
-    const tx3 = await AAVE_POOL.connect(fakeSigner).flashLoan(
+    const tx3 = await AAVE_POOL.connect(fakeSigner).flashLoanSimple(
         flashLoan.address,
-        assets,
-        amounts,
-        interestRateModes,
-        fakeSigner.address,
+        asset,
+        amount,
         params,
         0,
     );
