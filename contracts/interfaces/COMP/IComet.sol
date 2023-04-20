@@ -137,5 +137,7 @@ interface IComet {
     function collateralBalanceOf(address account, address asset) virtual external view returns (uint128);
     function allow(address manager, bool isAllowed) virtual external;
     function allowance(address owner, address spender) virtual external view returns (uint256);
+    function userCollateral(address account, address asset) external view returns(uint128, uint128);
+    function getBorrowableAmount(address account) external view returns(uint128, uint128);
 
 }
