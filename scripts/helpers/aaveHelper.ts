@@ -4,7 +4,8 @@ import {
     AAVE_POOL_ADDRESS,
     AAVE_Price_Oricle_Address,
     WETH_GATEWAY_ADDRESS,
-    aWETHAddress
+    aWETHAddress,
+    AAVE_Pool_Data_Provider_Address
 } from "../address";
 import {
     aTokenAbi,
@@ -16,13 +17,16 @@ import {getLtv} from "./aaveConfigHelper";
 import {getMaxLeverage} from "./leverage";
 
 export var AAVE_POOL: Contract;
+export var AAVE_POOL_DATA_PROVIDER: Contract;
 export var WETH_GATEWAY: Contract;
 export var AavePriceOricle: Contract;
 // export var ;
 
 export const initAAVEContract = async (signer: Signer) => {
     let poolAbi = await (await hre.artifacts.readArtifact("IPool")).abi;
+    let poolDataProviderAbi = await (await hre.artifacts.readArtifact("IPoolDataProvider")).abi;
     AAVE_POOL = new ethers.Contract(AAVE_POOL_ADDRESS, poolAbi, signer);
+    AAVE_POOL_DATA_PROVIDER = new ethers.Contract(AAVE_Pool_Data_Provider_Address, poolDataProviderAbi, signer);
     WETH_GATEWAY = new ethers.Contract(WETH_GATEWAY_ADDRESS, WETHGateABI, signer);
 }
 
@@ -61,6 +65,11 @@ export const getAssetPriceOnAAVE = async (asset: string) => {
 
 export const getUserATokenBalance = async (aToken: Contract, userAddress: string) => {
     return (await aToken.balanceOf(userAddress));
+}
+
+export const getUserDebtTokenBalance = async (asset: string, userAddress: string, interestRateMode: number) => {
+    const userReserveData = await AAVE_POOL_DATA_PROVIDER.getUserReserveData(asset, userAddress);
+    return userReserveData[interestRateMode];
 }
 
 export const getMaxLeverageOnAAVE =async (asset: string, POOL: Contract, TokenName: string) => {
