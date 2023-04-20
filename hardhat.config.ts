@@ -36,7 +36,7 @@ const config: HardhatUserConfig = {
       gasPrice: 0,
       initialBaseFeePerGas: 0,
       loggingEnabled: false,
-      // blockGasLimit: 150_000_000
+      // blockGasLimit: 150000000
     },
     local: {
       url: "http://127.0.0.1:8545/"

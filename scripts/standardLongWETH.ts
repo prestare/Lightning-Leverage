@@ -1,4 +1,3 @@
-import { HardhatRuntimeEnvironment } from 'hardhat/types';
 import { BigNumber, ethers } from 'ethers';
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { impersonateAccount } from "@nomicfoundation/hardhat-network-helpers";
@@ -90,7 +89,7 @@ async function main() {
     
     // FLASH LOAN $2000 DAI and short DAI
     let DAIPrice = await getAssetPriceOnAAVE(DaiAddress);
-    let DAISymbol = "DAI"
+    let DAISymbol = "DAI";
     console.log("   User choose to short %s Asset.", DAISymbol);
     console.log("   %s Price = $%d", DAISymbol, num2Fixed(DAIPrice, 8));
     let DAIdecimal = 18;

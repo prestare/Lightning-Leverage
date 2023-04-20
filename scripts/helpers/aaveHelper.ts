@@ -30,7 +30,7 @@ export const initAAVEContract = async (signer: Signer) => {
     WETH_GATEWAY = new ethers.Contract(WETH_GATEWAY_ADDRESS, WETHGateABI, signer);
 }
 
-export const aTokenContract = (aTokenAddress: string, signer: SignerWithAddress) => {
+export const aTokenContract = (aTokenAddress: string, signer: Signer) => {
     return (new ethers.Contract(aWETHAddress, aTokenAbi, signer));
 }
 
@@ -100,7 +100,7 @@ export const apporve2Borrow = async (debtToken: Contract, user: Signer, flashLoa
 
 export const checkBorrowAllowance = async (debtToken: Contract, userAddress: string, flashLoanAddress: string) => {
     const borrowAllowance = await debtToken.borrowAllowance(userAddress, flashLoanAddress);
-    // console.log("borrowAllowance is ", borrowAllowance);
+    console.log("borrowAllowance is ", borrowAllowance);
 }
 
 export const initAavePriceOracle = async (signer: Signer) => {

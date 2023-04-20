@@ -190,7 +190,7 @@ async function main() {
     console.log("After leverage, user borrowBalanceOf is: ", borrowBalanceOf);
     userCollateralBalance = await COMET.collateralBalanceOf(fakeSigner.address, WETHAddress);
     console.log("After leverage, user collateral balance is: ", userCollateralBalance);
-
+    
 }
 
 // We recommend this pattern to be able to use async/await everywhere
