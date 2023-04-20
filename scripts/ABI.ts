@@ -2,7 +2,9 @@ export const daiAbi = require("./abi/DAIABI.json");
 
 export const aTokenAbi = [
     "function balanceOf(address account) external view returns (uint256)",
-    "function approve(address spender, uint256 amount) external returns (bool)"
+    "function approve(address spender, uint256 amount) external returns (bool)",
+    "function nonces(address owner) external view returns (uint256)",
+    "function name() external view returns (string memory)"
 ];
 
 export const debtTokenABI = [

@@ -16,7 +16,8 @@ import {
   calcFlashLoanFee,
   showUserAccountData,
   num2Fixed,
-  getUserDebtTokenBalance
+  getUserDebtTokenBalance,
+  getApprovePermit
 } from "./helpers/aaveHelper";
 import { deployFlashLoan } from "./helpers/deployHelper";
 import { hre } from "./constant";
@@ -40,7 +41,6 @@ async function main() {
   await initAAVEContract(fakeSigner);
   // DEPOSIT 2 ETH IN AAVE
   const aWETH = aTokenContract(aWETHAddress, fakeSigner);
-  const Dai = aTokenContract(DaiAddress, fakeSigner);
 
   console.log("First, user have to deposit some token into the AAVE Pool");
 
@@ -137,12 +137,16 @@ async function main() {
 
   const interestRateMode: ethers.BigNumber = BigNumber.from("2");
   //AaveRepayOperation((bytes,bool,uint256,uint256),uint256,uint256)
-  let params = ethers.utils.defaultAbiCoder.encode(["tuple(bytes,bool,uint256,uint256)", "uint256", "uint256"],
-    [[path, single, amountIn, repayAmount.toString()], flashloanAmount.toString(), interestRateMode.toString()]);
-  params = ethers.utils.solidityPack(["bytes4", "bytes"], ["0xd1397e1d", params]);
+  const permitInfo = await getApprovePermit(aWETH, fakeSigner, flashLoan.address, amountIn);
+
+  let params = ethers.utils.defaultAbiCoder.encode(["tuple(bytes,bool,uint256,uint256)", "uint256", "uint256","tuple(uint256,uint8,bytes32,bytes32)"],
+    [[path, single, amountIn, repayAmount.toString()], flashloanAmount.toString(), interestRateMode.toString(),
+    [permitInfo.deadline, permitInfo.sig.v, permitInfo.sig.r, permitInfo.sig.s]]);
+  params = ethers.utils.solidityPack(["bytes4", "bytes"], ["0x8fd8f362", params]);
   console.log("params: ", params)
 
-  await aWETH.approve(flashLoan.address, depositAmount); // for test, need to improve
+  // await aWETH.approve(flashLoan.address, depositAmount); // for test, need to improve
+
   const tx3 = await AAVE_POOL.connect(fakeSigner).flashLoanSimple(
     flashLoan.address,
     asset,

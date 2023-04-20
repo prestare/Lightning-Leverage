@@ -34,6 +34,56 @@ export const aTokenContract = (aTokenAddress: string, signer: SignerWithAddress)
     return (new ethers.Contract(aWETHAddress, aTokenAbi, signer));
 }
 
+export const getApprovePermit = async (token: Contract, signer: SignerWithAddress, spender: string, value: string) => {
+    const nonces = await token.nonces(signer.address);
+
+    const MainnetId = "1";
+    const domain = {
+        name: await token.name(),
+        version: "1",
+        chainId: MainnetId,
+        verifyingContract: token.address
+    }
+
+    const types = {
+        Permit: [{
+            name: "owner",
+            type: "address"
+          },
+          {
+            name: "spender",
+            type: "address"
+          },
+          {
+            name: "value",
+            type: "uint256"
+          },
+          {
+            name: "nonce",
+            type: "uint256"
+          },
+          {
+            name: "deadline",
+            type: "uint256"
+          },
+        ],
+      };
+
+      const deadline = Math.floor(Date.now() / 1000) + 4200;
+      const values = {
+        owner: signer.address,
+        spender: spender,
+        value: value,
+        nonce: nonces,
+        deadline: deadline,
+      };
+
+      const signature = await signer._signTypedData(domain, types, values);
+      const sig = ethers.utils.splitSignature(signature);
+
+      return {deadline,sig};
+}
+
 export const getAssetDebtTokenAddress = async (asset: string) => {
     return (await AAVE_POOL.getReserveData(asset)).variableDebtTokenAddress;
 }

@@ -7,6 +7,7 @@ import {IPoolAddressesProvider} from "./interfaces/AAVE/IPoolAddressesProvider.s
 import {IPool} from "./interfaces/AAVE/IPool.sol";
 import {IERC20} from "./interfaces/IERC20.sol";
 import {IWETH} from "./interfaces/IWETH.sol";
+import {IAToken} from "./interfaces/AAVE/IAToken.sol";
 import {IWstETH} from "./interfaces/LIDO/IWstETH.sol";
 import {ILido} from "./interfaces/LIDO/ILido.sol";
 import {IComet} from "./interfaces/COMP/IComet.sol";
@@ -26,6 +27,13 @@ contract FlashLoan is IFlashLoanSimpleReceiver {
     struct SwapParams {
         BaseSwapParams base;
         address recipient;
+    }
+
+    struct ApprovePermitParams {
+        uint256 deadline;
+        uint8 v;
+        bytes32 r;
+        bytes32 s;
     }
 
     IPoolAddressesProvider public override ADDRESSES_PROVIDER;
@@ -58,7 +66,9 @@ contract FlashLoan is IFlashLoanSimpleReceiver {
         SWAP_ROUTER = ISwapRouter(swapRouter);
         POOL = IPool(ADDRESSES_PROVIDER.getPool());
         OWNER = owner;
-        POOL_DATA_PROVIDER = IPoolDataProvider(ADDRESSES_PROVIDER.getPoolDataProvider());
+        POOL_DATA_PROVIDER = IPoolDataProvider(
+            ADDRESSES_PROVIDER.getPoolDataProvider()
+        );
     }
 
     /**
@@ -130,7 +140,7 @@ contract FlashLoan is IFlashLoanSimpleReceiver {
         }
     }
 
-        function executeOperation(
+    function executeOperation(
         address[] calldata assets,
         uint256[] calldata amounts,
         uint256[] calldata premiums,
@@ -181,25 +191,45 @@ contract FlashLoan is IFlashLoanSimpleReceiver {
         return leverageAAVEPos(Long, amountOut, OWNER, 0);
     }
 
-    // selector: 0xd1397e1d
+    // selector: 0x8fd8f362
     function AaveRepayOperation(
         BaseSwapParams calldata base,
         uint256 flashAmount,
-        uint256 interestRateMode
+        uint256 interestRateMode,
+        ApprovePermitParams calldata permitParams
     ) public returns (bool) {
         (address Long, , ) = decodeFirstPool(base.path);
         (, address Short, ) = decodeLastPool(base.path);
         IERC20(Short).approve(address(POOL), flashAmount);
-        uint256 repayAmount = POOL.repay(Short, flashAmount, interestRateMode, tx.origin);
+        uint256 repayAmount = POOL.repay(
+            Short,
+            flashAmount,
+            interestRateMode,
+            tx.origin
+        );
         console.log("repayAmount ", repayAmount);
 
-        (address aToken, , ) = POOL_DATA_PROVIDER.getReserveTokensAddresses(Long);
+        (address aToken, , ) = POOL_DATA_PROVIDER.getReserveTokensAddresses(
+            Long
+        );
 
         console.log("aToken: ", aToken);
-        IERC20(aToken).transferFrom(tx.origin, address(this), base.amountIn);
+        IAToken(aToken).permit(
+            tx.origin,
+            address(this),
+            base.amountIn,
+            permitParams.deadline,
+            permitParams.v,
+            permitParams.r,
+            permitParams.s
+        );
+        IAToken(aToken).transferFrom(tx.origin, address(this), base.amountIn);
 
-
-        uint256 withdrawAmount = POOL.withdraw(Long, base.amountIn, address(this));
+        uint256 withdrawAmount = POOL.withdraw(
+            Long,
+            base.amountIn,
+            address(this)
+        );
         console.log("withdrawAmount ", withdrawAmount);
 
         SwapParams memory swapParams = SwapParams({
@@ -213,7 +243,11 @@ contract FlashLoan is IFlashLoanSimpleReceiver {
         console.log("amountOutMinimum: ", base.amountOutMinimum);
         bool success = IERC20(Short).approve(address(POOL), amountOut);
         require(success, "failed to approve");
-        return IERC20(Short).transfer(tx.origin, amountOut - base.amountOutMinimum);
+        return
+            IERC20(Short).transfer(
+                tx.origin,
+                amountOut - base.amountOutMinimum
+            );
     }
 
     // selector: 0x6afc18e3
@@ -245,9 +279,16 @@ contract FlashLoan is IFlashLoanSimpleReceiver {
         uint256 amountOut = swap(swapParams);
         console.log("amountOut: ", amountOut);
 
-        bool success = IERC20(Short).approve(address(POOL), base.amountOutMinimum);
+        bool success = IERC20(Short).approve(
+            address(POOL),
+            base.amountOutMinimum
+        );
         require(success, "failed to approve");
-        return IERC20(Short).transfer(tx.origin, amountOut - base.amountOutMinimum);
+        return
+            IERC20(Short).transfer(
+                tx.origin,
+                amountOut - base.amountOutMinimum
+            );
     }
 
     // selector: 0xfe235f79
