@@ -14,6 +14,7 @@ import {IComet} from "./interfaces/COMP/IComet.sol";
 import {IPoolDataProvider} from "./interfaces/AAVE/IPoolDataProvider.sol";
 import {ISwapRouter} from "@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol";
 import './libraries/Path.sol';
+import './libraries/Errors.sol';
 
 import "hardhat/console.sol";
 
@@ -63,39 +64,6 @@ contract FlashLoan is IFlashLoanSimpleReceiver {
         POOL_DATA_PROVIDER = IPoolDataProvider(
             ADDRESSES_PROVIDER.getPoolDataProvider()
         );
-    }
-
-    /**
-     * @dev call Aave flashLoanSimple func
-     * @param receiverAddress The address of the contract receiving the funds, implementing IFlashLoanSimpleReceiver interface
-     * @param assets The address of the asset being flash-borrowed
-     * @param amounts The amount of the asset being flash-borrowed
-     * @param interestRateModes The ir modes for each asset
-     * @param params describe in IPool flashLoanSimple
-     * @param referralCode describe in IPool flashLoanSimple
-     */
-    function callAAVEFlashLoan(
-        address receiverAddress,
-        address[] calldata assets,
-        uint256[] memory amounts,
-        uint256[] memory interestRateModes,
-        bytes memory params,
-        uint16 referralCode
-    ) external returns (bool) {
-        // uint256 balance = IERC20(assets[0]).balanceOf(address(this));
-        // console.log("balance is: ", balance);
-        // if we keep params in a map, Will the transaction consume less gas?
-        POOL.flashLoan(
-            address(this),
-            assets,
-            amounts,
-            interestRateModes,
-            OWNER,
-            params,
-            referralCode
-        );
-
-        return true;
     }
 
     function executeOperation(
@@ -235,8 +203,8 @@ contract FlashLoan is IFlashLoanSimpleReceiver {
         console.log("amountOut: ", amountOut);
 
         console.log("amountOutMinimum: ", base.amountOutMinimum);
-        bool success = IERC20(Short).approve(address(POOL), amountOut);
-        require(success, "failed to approve");
+        _safeApprove(Short, address(POOL), amountOut);
+
         return
             IERC20(Short).transfer(
                 tx.origin,
@@ -273,11 +241,8 @@ contract FlashLoan is IFlashLoanSimpleReceiver {
         uint256 amountOut = swap(swapParams);
         console.log("amountOut: ", amountOut);
 
-        bool success = IERC20(Short).approve(
-            address(POOL),
-            base.amountOutMinimum
-        );
-        require(success, "failed to approve");
+        _safeApprove(Short, address(POOL), base.amountOutMinimum);
+
         return
             IERC20(Short).transfer(
                 tx.origin,
@@ -308,32 +273,32 @@ contract FlashLoan is IFlashLoanSimpleReceiver {
         return IERC20(Long).approve(address(POOL), base.amountOutMinimum);
     }
 
-    // use transfer and send run out of gas!!!!!
-    // the Out-of-gas problem may be caused by sending eth between the contract and weth, and transfer eth to lido to wstcontract
-    // But i think that is a little useless
-    function _excuteLIDO(address weth, uint256 amount) internal returns (bool) {
-        // submit eth to
-        console.log(weth);
-        console.log(amount);
-        // console.logBytes4(bytes4(keccak256(bytes("withdraw(uint256)"))));
-        uint256 balance = IWETH(weth).balanceOf(address(this));
-        console.log(balance);
-        IWETH(weth).withdraw(amount);
-        console.log("withdraw");
-        // uint256 stETH = ILido(LIDOADDRESS).submit{value:amount}(address(this));
-        // use the shortcut wstETH supply to submit eth to lido;
-        (bool sent, ) = WSTADDRESS.call{value: amount}("");
-        require(sent, "send eth to wstEther fail");
-        console.log("transfer done");
-        uint256 wstETH = IWstETH(WSTADDRESS).balanceOf(address(this));
-        console.log(wstETH);
-        // approve pool to pull money form this to deposit
-        IERC20(WSTADDRESS).approve(address(POOL), wstETH);
-        POOL.supply(WSTADDRESS, wstETH, OWNER, 0);
+    // // use transfer and send run out of gas!!!!!
+    // // the Out-of-gas problem may be caused by sending eth between the contract and weth, and transfer eth to lido to wstcontract
+    // // But i think that is a little useless
+    // function _excuteLIDO(address weth, uint256 amount) internal returns (bool) {
+    //     // submit eth to
+    //     console.log(weth);
+    //     console.log(amount);
+    //     // console.logBytes4(bytes4(keccak256(bytes("withdraw(uint256)"))));
+    //     uint256 balance = IWETH(weth).balanceOf(address(this));
+    //     console.log(balance);
+    //     IWETH(weth).withdraw(amount);
+    //     console.log("withdraw");
+    //     // uint256 stETH = ILido(LIDOADDRESS).submit{value:amount}(address(this));
+    //     // use the shortcut wstETH supply to submit eth to lido;
+    //     (bool sent, ) = WSTADDRESS.call{value: amount}("");
+    //     require(sent, "send eth to wstEther fail");
+    //     console.log("transfer done");
+    //     uint256 wstETH = IWstETH(WSTADDRESS).balanceOf(address(this));
+    //     console.log(wstETH);
+    //     // approve pool to pull money form this to deposit
+    //     IERC20(WSTADDRESS).approve(address(POOL), wstETH);
+    //     POOL.supply(WSTADDRESS, wstETH, OWNER, 0);
 
-        console.log("finish _excuteLIDO Op");
-        return true;
-    }
+    //     console.log("finish _excuteLIDO Op");
+    //     return true;
+    // }
 
     function leverageAAVEPos(
         address asset,
@@ -426,7 +391,7 @@ contract FlashLoan is IFlashLoanSimpleReceiver {
         );
         require(
             success && (data.length == 0 || abi.decode(data, (bool))),
-            "SA"
+            Errors.APPROVE_FAILED
         );
     }
 
