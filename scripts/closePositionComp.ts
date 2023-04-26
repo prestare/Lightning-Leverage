@@ -124,14 +124,13 @@ async function main() {
   // const amountIn = maximumAmount.toString();
 
   const single = true;
-  const path = "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc20001f4a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+  const path = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb480001f4c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
   const amountIn = "1003331194516972752"
 
   const asset: string = USDCAddress;
   const amount: ethers.BigNumber = flashloanAmount;
 
-  let params = ethers.utils.defaultAbiCoder.encode(["tuple(bytes,bool,uint256,uint256)", "uint256"], [[path, single, amountIn, repayAmount.toString()], flashloanAmount.toString()]);
-  params = ethers.utils.solidityPack(["bytes4", "bytes"], ["0x6afc18e3", params]);
+  const params = ethers.utils.solidityPack(["bool", "uint256", "bytes", "bytes4"], [single, amountIn, path, "0xeedcb9b9", ]);
   console.log("params: ", params)
 
   await allowFlashLoanContract(fakeSigner, flashLoan.address);

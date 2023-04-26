@@ -13,24 +13,20 @@ import {ILido} from "./interfaces/LIDO/ILido.sol";
 import {IComet} from "./interfaces/COMP/IComet.sol";
 import {IPoolDataProvider} from "./interfaces/AAVE/IPoolDataProvider.sol";
 import {ISwapRouter} from "@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol";
-import './libraries/Path.sol';
-import './libraries/Errors.sol';
+import "./libraries/Path.sol";
+import "./libraries/Errors.sol";
 
 import "hardhat/console.sol";
 
 contract FlashLoan is IFlashLoanSimpleReceiver {
     using Path for bytes;
 
-    struct BaseSwapParams {
-        bytes path;
-        bool single;
-        uint256 amountIn;
-        uint256 amountOutMinimum;
-    }
-
     struct SwapParams {
-        BaseSwapParams base;
+        uint256 amount;
+        uint256 amountM;
+        bool single;
         address recipient;
+        bytes path;
     }
 
     struct ApprovePermitParams {
@@ -76,14 +72,15 @@ contract FlashLoan is IFlashLoanSimpleReceiver {
         address implematation = address(this);
 
         assembly {
-            calldatacopy(0, params.offset, params.length)
+            calldatacopy(0, 0, calldatasize())
+            calldatacopy(0, add(params.offset, sub(params.length, 4)), 4) // 4: selector bytes4
             // Call the implementation.
             // out and outsize are 0 because we don't know the size yet.
             let result := delegatecall(
                 gas(),
                 implematation,
                 0,
-                params.length,
+                calldatasize(),
                 0,
                 0
             )
@@ -110,16 +107,19 @@ contract FlashLoan is IFlashLoanSimpleReceiver {
         bytes calldata params
     ) external returns (bool) {
         address implematation = address(this);
+        console.logBytes(msg.data);
+        console.logBytes(params);
 
         assembly {
-            calldatacopy(0, params.offset, params.length)
+            calldatacopy(0, 0, calldatasize())
+            calldatacopy(0, add(params.offset, sub(params.length, 4)), 4) // 4: selector bytes4
             // Call the implementation.
             // out and outsize are 0 because we don't know the size yet.
             let result := delegatecall(
                 gas(),
                 implematation,
                 0,
-                params.length,
+                calldatasize(),
                 0,
                 0
             )
@@ -138,36 +138,114 @@ contract FlashLoan is IFlashLoanSimpleReceiver {
         }
     }
 
-    // selector: 0x8ecfaae0
+    // selector: 0x80ddec56
     function AaveOperation(
-        BaseSwapParams calldata baseSwapParams
+        address[] calldata assets,
+        uint256[] calldata amounts,
+        uint256[] calldata premiums,
+        address initiator,
+        bytes calldata params
     ) public returns (bool) {
-        (, address Long, ) = baseSwapParams.path.decodeLastPool();
+        // params: single+amountOutMinimum+path, bool+uint256+bytes
+        bool single = params.toBool(0);
+        uint256 amountOutMinimum = params.toUint256(1);
+        bytes calldata path = params[33:params.length - 4]; // remove selector
+        (, address Long, ) = path.decodeLastPool();
 
         SwapParams memory swapParams = SwapParams({
-            base: baseSwapParams,
-            recipient: address(this)
+            amount: amounts[0],
+            amountM: amountOutMinimum,
+            single: single,
+            recipient: address(this),
+            path: path
         });
 
-        uint256 amountOut = swap(swapParams);
-        return leverageAAVEPos(Long, amountOut, OWNER, 0);
+        uint256 amountOut = swap(swapParams, false);
+
+        return leverageAAVEPos(Long, amountOut, initiator, 0);
     }
 
-    // selector: 0x8fd8f362
-    function AaveRepayOperation(
-        BaseSwapParams calldata base,
-        uint256 flashAmount,
-        uint256 interestRateMode,
-        ApprovePermitParams calldata permitParams
+    // selector: 16d1fb86
+    function CompOperation(
+        address Long,
+        uint256 amount,
+        uint256 premiums,
+        address initiator,
+        bytes calldata params
     ) public returns (bool) {
-        (address Long, , ) = base.path.decodeFirstPool();
-        (, address Short, ) = base.path.decodeLastPool();
-        IERC20(Short).approve(address(POOL), flashAmount);
+        // params: single+amountIn+path, bool+uint256+bytes+bytes4
+        bool single = params.toBool(0);
+        uint256 amountIn = params.toUint256(1);
+        uint256 amountOutMinimum = amount + premiums;
+        bytes calldata path = params[33:params.length - 4]; // remove selector
+
+        IERC20(Long).approve(address(COMET), amount);
+        COMET.supplyTo(initiator, Long, amount);
+        COMET.collateralBalanceOf(initiator, Long);
+        COMET.withdrawFrom(initiator, address(this), USDC, amountIn);
+        IERC20(USDC).balanceOf(address(this));
+
+        SwapParams memory swapParams = SwapParams({
+            amount: amountIn,
+            amountM: amountOutMinimum,
+            single: single,
+            recipient: address(this),
+            path: path
+        });
+        swap(swapParams, false);
+
+        return IERC20(Long).approve(address(POOL), amountOutMinimum);
+    }
+
+    struct AaveRepayParams {
+        bool single;
+        uint8 v;
+        uint256 amountInMaximum;
+        uint256 repayAmount;
+        uint256 interestRateMode;
+        uint256 deadline;
+        bytes32 r;
+        bytes32 s;
+        bytes path;
+    }
+
+    // selector: 0xd8ad4ac2
+    function AaveRepayOperation(
+        address Short,
+        uint256 amount,
+        uint256 premiums,
+        address initiator,
+        bytes calldata params
+    ) public returns (bool) {
+        // params: single+amountInMaximum+interestRateMode+deadline+v+r+s+path+selector,
+        // bool+uint256+uint256+uint256+uint8+bytes32+bytes32+bytes+bytes4
+        AaveRepayParams memory aaveRepayParams = AaveRepayParams({
+            single: params.toBool(0),
+            v: params.toUint8(97),
+            amountInMaximum: params.toUint256(1),
+            repayAmount: amount + premiums,
+            interestRateMode: params.toUint256(33),
+            deadline: params.toUint256(65),
+            r: bytes32(params[98:130]),
+            s: bytes32(params[130:162]),
+            path: params[162:params.length - 4] // remove selector
+        });
+        console.log("amountInMaximum", params.toUint256(1));
+        console.log("interestRateMode:", params.toUint256(33));
+        console.log("path");
+        console.logBytes(aaveRepayParams.path);
+        console.log(aaveRepayParams.v);
+        console.logBytes32(aaveRepayParams.r);
+        console.logBytes32(aaveRepayParams.s);
+
+        (, address Long, ) = aaveRepayParams.path.decodeLastPool();
+
+        IERC20(Short).approve(address(POOL), amount);
         uint256 repayAmount = POOL.repay(
             Short,
-            flashAmount,
-            interestRateMode,
-            tx.origin
+            amount,
+            aaveRepayParams.interestRateMode,
+            initiator
         );
         console.log("repayAmount ", repayAmount);
 
@@ -177,101 +255,112 @@ contract FlashLoan is IFlashLoanSimpleReceiver {
 
         console.log("aToken: ", aToken);
         IAToken(aToken).permit(
-            tx.origin,
+            initiator,
             address(this),
-            base.amountIn,
-            permitParams.deadline,
-            permitParams.v,
-            permitParams.r,
-            permitParams.s
+            aaveRepayParams.amountInMaximum,
+            aaveRepayParams.deadline,
+            aaveRepayParams.v,
+            aaveRepayParams.r,
+            aaveRepayParams.s
         );
-        IAToken(aToken).transferFrom(tx.origin, address(this), base.amountIn);
+
+        IAToken(aToken).transferFrom(
+            initiator,
+            address(this),
+            aaveRepayParams.amountInMaximum
+        );
 
         uint256 withdrawAmount = POOL.withdraw(
             Long,
-            base.amountIn,
+            aaveRepayParams.amountInMaximum,
             address(this)
         );
         console.log("withdrawAmount ", withdrawAmount);
+        console.log("repayAmount: ", aaveRepayParams.repayAmount);
 
         SwapParams memory swapParams = SwapParams({
-            base: base,
-            recipient: address(this)
+            amount: amount + premiums,
+            amountM: aaveRepayParams.amountInMaximum,
+            single: aaveRepayParams.single,
+            recipient: address(this),
+            path: aaveRepayParams.path
         });
 
-        uint256 amountOut = swap(swapParams);
-        console.log("amountOut: ", amountOut);
+        uint256 amountIn = swap(swapParams, true);
+        console.log("amountIn: ", amountIn);
 
-        console.log("amountOutMinimum: ", base.amountOutMinimum);
-        _safeApprove(Short, address(POOL), amountOut);
+        console.log("amountInMaximum: ", aaveRepayParams.amountInMaximum);
+        _safeApprove(Short, address(POOL), aaveRepayParams.repayAmount);
 
         return
-            IERC20(Short).transfer(
-                tx.origin,
-                amountOut - base.amountOutMinimum
+            IERC20(Long).transfer(
+                initiator,
+                aaveRepayParams.amountInMaximum - amountIn
             );
     }
 
-    // selector: 0x6afc18e3
+    struct CompRepayParams {
+        bool single;
+        uint256 amountInMaximum;
+        uint256 repayAmount;
+        bytes path;
+    }
+
+    // selector: 0xeedcb9b9
     function CompRepayOperation(
-        BaseSwapParams calldata base,
-        uint256 flashAmount
+        address Short,
+        uint256 amount,
+        uint256 premiums,
+        address initiator,
+        bytes calldata params
     ) public returns (bool) {
-        (address Long, , ) = base.path.decodeFirstPool();
-        (, address Short, ) = base.path.decodeLastPool();
-        IERC20(Short).approve(address(COMET), flashAmount);
+        // params: single+amountInMaximum+path+selector,
+        // bool+uint256+bytes+bytes4
+        CompRepayParams memory compRepayParams = CompRepayParams({
+            single: params.toBool(0),
+            amountInMaximum: params.toUint256(1),
+            repayAmount: amount + premiums,
+            path: params[33:params.length - 4] // remove selector
+        });
+        // bool single = params.toBool(0);
+        // uint256 amountInMaximum = params.toUint256(1);
+        // bytes memory path = params[33:params.length - 4];
+        // uint256 repayAmount = amount + premiums;
+        (, address Long, ) = compRepayParams.path.decodeLastPool();
+        console.log("Long:", Long);
+        console.log("amountInMaximum:", compRepayParams.amountInMaximum);
+
+        IERC20(Short).approve(address(COMET), amount);
 
         uint256 balance = IERC20(Short).balanceOf(address(this));
         console.log("balance", balance);
-        uint256 borrowBalanceOf = COMET.borrowBalanceOf(tx.origin);
+        uint256 borrowBalanceOf = COMET.borrowBalanceOf(initiator);
         console.log("borrowBalanceOf1", borrowBalanceOf);
 
-        COMET.supplyTo(tx.origin, Short, flashAmount);
-        borrowBalanceOf = COMET.borrowBalanceOf(tx.origin);
+        COMET.supplyTo(initiator, Short, amount);
+        borrowBalanceOf = COMET.borrowBalanceOf(initiator);
         console.log("borrowBalanceOf", borrowBalanceOf);
-        console.log("tx.origin: ", tx.origin);
+        console.log("tx.origin: ", initiator);
 
-        COMET.withdrawFrom(tx.origin, address(this), Long, base.amountIn);
-
-        SwapParams memory swapParams = SwapParams({
-            base: base,
-            recipient: address(this)
-        });
-
-        uint256 amountOut = swap(swapParams);
-        console.log("amountOut: ", amountOut);
-
-        _safeApprove(Short, address(POOL), base.amountOutMinimum);
-
-        return
-            IERC20(Short).transfer(
-                tx.origin,
-                amountOut - base.amountOutMinimum
-            );
-    }
-
-    // selector: 0xfe235f79
-    function CompOperation(
-        BaseSwapParams calldata base,
-        uint256 flashAmount
-    ) public returns (bool) {
-        address initiator = tx.origin;
-        (, address Long, ) = base.path.decodeLastPool();
-
-        IERC20(Long).approve(address(COMET), flashAmount);
-        COMET.supplyTo(initiator, Long, flashAmount);
-        COMET.collateralBalanceOf(initiator, Long);
-        COMET.withdrawFrom(initiator, address(this), USDC, base.amountIn);
-        IERC20(USDC).balanceOf(address(this));
+        COMET.withdrawFrom(initiator, address(this), Long, compRepayParams.amountInMaximum);
 
         SwapParams memory swapParams = SwapParams({
-            base: base,
-            recipient: address(this)
+            amount: compRepayParams.repayAmount,
+            amountM: compRepayParams.amountInMaximum,
+            single: compRepayParams.single,
+            recipient: address(this),
+            path: compRepayParams.path
         });
-        swap(swapParams);
 
-        return IERC20(Long).approve(address(POOL), base.amountOutMinimum);
+        uint256 amountIn = swap(swapParams, true);
+        console.log("amountIn: ", amountIn);
+
+        _safeApprove(Short, address(POOL), compRepayParams.repayAmount);
+
+        return IERC20(Long).transfer(initiator, compRepayParams.amountInMaximum - amountIn);
     }
+
+    // selector: 0x16d1fb86
 
     // // use transfer and send run out of gas!!!!!
     // // the Out-of-gas problem may be caused by sending eth between the contract and weth, and transfer eth to lido to wstcontract
@@ -313,21 +402,52 @@ contract FlashLoan is IFlashLoanSimpleReceiver {
     }
 
     function swap(
+        SwapParams memory swapParams,
+        bool exactOut
+    ) public returns (uint256 amount) {
+        if (exactOut) {
+            return swapExactOutputs(swapParams);
+        } else {
+            return swapExactInputs(swapParams);
+        }
+    }
+
+    function swapExactInputs(
         SwapParams memory swapParams
-    ) public returns (uint256 amountOut) {
-        if (swapParams.base.single) {
+    ) internal returns (uint256 amountOut) {
+        if (swapParams.single) {
             amountOut = swapExactInputSingle(
-                swapParams.base.path,
+                swapParams.path,
                 swapParams.recipient,
-                swapParams.base.amountIn,
-                swapParams.base.amountOutMinimum
+                swapParams.amount,
+                swapParams.amountM
             );
         } else {
             amountOut = swapExactInput(
-                swapParams.base.path,
+                swapParams.path,
                 swapParams.recipient,
-                swapParams.base.amountIn,
-                swapParams.base.amountOutMinimum
+                swapParams.amount,
+                swapParams.amountM
+            );
+        }
+    }
+
+    function swapExactOutputs(
+        SwapParams memory swapParams
+    ) internal returns (uint256 amountIn) {
+        if (swapParams.single) {
+            amountIn = swapExactOutputSingle(
+                swapParams.path,
+                swapParams.recipient,
+                swapParams.amount,
+                swapParams.amountM
+            );
+        } else {
+            amountIn = swapExactOutput(
+                swapParams.path,
+                swapParams.recipient,
+                swapParams.amount,
+                swapParams.amountM
             );
         }
     }
@@ -338,7 +458,8 @@ contract FlashLoan is IFlashLoanSimpleReceiver {
         uint256 amountIn,
         uint256 amountOutMinimum
     ) internal returns (uint256 amountOut) {
-        (address tokenIn, address tokenOut, uint24 fee) = path.decodeFirstPool();
+        (address tokenIn, address tokenOut, uint24 fee) = path
+            .decodeFirstPool();
 
         console.log("tokenIn:", tokenIn);
         console.log("tokenOut:", tokenOut);
@@ -383,7 +504,59 @@ contract FlashLoan is IFlashLoanSimpleReceiver {
         amountOut = SWAP_ROUTER.exactInput(params);
     }
 
+    function swapExactOutputSingle(
+        bytes memory path,
+        address recipient,
+        uint256 amountOut,
+        uint256 amountInMaximum
+    ) internal returns (uint256 amountIn) {
+        (address tokenOut, address tokenIn, uint24 fee) = path
+            .decodeFirstPool();
 
+        console.log("tokenIn:", tokenIn);
+        console.log("tokenOut:", tokenOut);
+        _safeApprove(tokenIn, address(SWAP_ROUTER), amountInMaximum);
+        uint256 balance = IERC20(tokenIn).balanceOf(address(this));
+        console.log("balance: ", balance);
+        // IERC20(tokenIn).transferFrom(msg.sender, address(this), amountIn);
+
+        ISwapRouter.ExactOutputSingleParams memory params = ISwapRouter
+            .ExactOutputSingleParams({
+                tokenIn: tokenIn,
+                tokenOut: tokenOut,
+                fee: fee,
+                recipient: recipient,
+                deadline: block.timestamp + 3000,
+                amountOut: amountOut,
+                amountInMaximum: amountInMaximum,
+                sqrtPriceLimitX96: 0
+            });
+
+        amountIn = SWAP_ROUTER.exactOutputSingle(params);
+    }
+
+    function swapExactOutput(
+        bytes memory path,
+        address recipient,
+        uint256 amountOut,
+        uint256 amountInMaximum
+    ) internal returns (uint256 amountIn) {
+        (, address tokenIn, ) = path.decodeFirstPool();
+
+        _safeApprove(tokenIn, address(SWAP_ROUTER), amountInMaximum);
+        // IERC20(tokenIn).transferFrom(msg.sender, address(this), amountIn);
+
+        ISwapRouter.ExactOutputParams memory params = ISwapRouter
+            .ExactOutputParams({
+                path: path,
+                recipient: recipient,
+                deadline: block.timestamp + 3000,
+                amountOut: amountOut,
+                amountInMaximum: amountInMaximum
+            });
+
+        amountIn = SWAP_ROUTER.exactOutput(params);
+    }
 
     function _safeApprove(address token, address to, uint256 value) internal {
         (bool success, bytes memory data) = token.call(

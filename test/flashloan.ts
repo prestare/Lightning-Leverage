@@ -17,7 +17,7 @@ import { deployFlashLoan } from "../scripts/helpers/deployHelper";
 import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 
 describe("comp", function () {
-    async function beforeAaveFixture() {
+    async function beforeCompFixture() {
         const [fakeSigner] = await ethers.getSigners();
         const flashLoan = await deployFlashLoan(fakeSigner);
 
@@ -30,38 +30,30 @@ describe("comp", function () {
         console.log(" finish to supplyETH");
 
         let flashloanAmount = BigNumber.from("6000000000000000000");
-        let flashLoanFee = BigNumber.from("3000000000000000");
-        let repayAmount = flashloanAmount.add(flashLoanFee);
 
-        return { flashLoan, fakeSigner, repayAmount }
+
+        return { flashLoan, fakeSigner, flashloanAmount }
     }
 
     it("long WETH", async function () {
-        const { flashLoan, fakeSigner, repayAmount } = await loadFixture(beforeAaveFixture);
+        const { flashLoan, fakeSigner, flashloanAmount } = await loadFixture(beforeCompFixture);
 
-        let flashloanAmount = BigNumber.from("6000000000000000000");
+        const asset: string = WETHAddress;
+        const amount: ethers.BigNumber = flashloanAmount;
 
-        const assets: string[] = [WETHAddress,];
-        const amounts: ethers.BigNumber[] = [flashloanAmount,];
-        const interestRateModes: ethers.BigNumber[] = [BigNumber.from("0"),];
-
-        let amountIn = "11581602299"
+        let amountIn = "9644492283"
         const single = true;
         const path = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb480001f4c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2";
 
-
-        let params = ethers.utils.defaultAbiCoder.encode(["tuple(bytes,bool,uint256,uint256)", "uint256"], [[path, single, amountIn, repayAmount.toString()], flashloanAmount]);
-        params = ethers.utils.solidityPack(["bytes4", "bytes"], ["0xfe235f79", params]);
+        const params = ethers.utils.solidityPack(["bool", "uint256", "bytes", "bytes4"], [single, amountIn, path, "0x16d1fb86"]);
 
 
         await allowFlashLoanContract(fakeSigner, flashLoan.address);
 
-        const gas = await AAVE_POOL.connect(fakeSigner).estimateGas.flashLoan(
+        const gas = await AAVE_POOL.connect(fakeSigner).estimateGas.flashLoanSimple(
             flashLoan.address,
-            assets,
-            amounts,
-            interestRateModes,
-            fakeSigner.address,
+            asset,
+            amount,
             params,
             0,
         );
@@ -101,14 +93,11 @@ describe("aave", function () {
         const interestRateModes: ethers.BigNumber[] = [BigNumber.from("2"),];
 
 
-        const single = false;
-        const minimumAmount = "5000000000000000000";
-        const path = "0x6b175474e89094c44da98b954eedeac495271d0f000064dac17f958d2ee523a2206206994597c13d831ec70001f4c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2";
+        const single = true;
+        const minimumAmount = "5269674485762893556";
+        const path = "0x6b175474e89094c44da98b954eedeac495271d0f0001f4c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2";
 
-
-        // function AaveOperation(bool single,uint256 amountIn,uint256 minimumAmount,bytes memory path)
-        let params = ethers.utils.defaultAbiCoder.encode(["tuple(bytes,bool,uint256,uint256)"], [[path, single, flashloanAmount, minimumAmount.toString()]]);
-        params = ethers.utils.solidityPack(["bytes4", "bytes"], ["0x8ecfaae0", params]);
+        const params = ethers.utils.solidityPack(["bool", "uint256", "bytes", "bytes4"], [single, minimumAmount.toString(), path, "0x80ddec56"]);
 
 
 
@@ -125,5 +114,5 @@ describe("aave", function () {
     })
 })
 
-// aave old gas 713000; new gas 708160
-// comp new gas 586971
+// aave old gas 713000; new gas 708160; new2 612974
+// comp new gas 586971; new2 550576

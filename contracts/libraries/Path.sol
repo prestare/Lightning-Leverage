@@ -54,6 +54,22 @@ library Path {
         return tempAddress;
     }
 
+        /// @dev toUint8 decodes bytes to uint8
+    function toUint8(
+        bytes memory _bytes,
+        uint256 _start
+    ) internal pure returns (uint8) {
+        require(_start + 1 >= _start, Errors.BYTES_OFFSET_OVERFLOW);
+        require(_bytes.length >= _start + 1, Errors.BYTES_OFFSET_OUT_BOUNDS);
+        uint8 tempUint;
+
+        assembly {
+            tempUint := mload(add(add(_bytes, 0x1), _start))
+        }
+
+        return tempUint;
+    }
+
     /// @dev toUint24 decodes bytes to uint24
     function toUint24(
         bytes memory _bytes,

@@ -2,7 +2,7 @@ import { BigNumber, ethers } from 'ethers';
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { Percent } from '@uniswap/sdk-core';
 
-import { DaiAddress, WETHAddress, aWETHAddress} from './address';
+import { DaiAddress, WETHAddress, aWETHAddress } from './address';
 import {
   calcUserAssetValue,
 } from './helpers/leverage';
@@ -93,8 +93,8 @@ async function main() {
   console.log("   After SWAP, need %s DAI to repay the flash loan", repayAmount.toString());
 
   console.log("");
-  console.log("Quoter Asset Swap");
-  console.log("   Registry Token...");
+  // console.log("Quoter Asset Swap");
+  // console.log("   Registry Token...");
   // registryToken('WETH', WETH_TOKEN);
   // registryToken('DAI', DAI_TOKEN);
   // const route = await swapRouteExactOutPut(
@@ -109,7 +109,7 @@ async function main() {
   // const { route: routePath, inputAmount } = route.trade.swaps[0];
   // const maximumAmount = route.trade.maximumAmountIn(slippageTolerance, inputAmount).quotient;
 
-  // const path = encodeRouteToPath(routePath, false);
+  // const path = encodeRouteToPath(routePath, true);
   // console.log(`   maximum Input Amount: ${maximumAmount}`);
   // console.log(`   route path: ${path}`);
 
@@ -129,7 +129,9 @@ async function main() {
   // const amountIn = maximumAmount.toString();
 
   const single = true;
-  const path = "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc20001f46b175474e89094c44da98b954eedeac495271d0f"
+  // const path = "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc20001f46b175474e89094c44da98b954eedeac495271d0f"
+  // const amountIn = "1003389458389176670"
+  const path = "0x6b175474e89094c44da98b954eedeac495271d0f0001f4c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
   const amountIn = "1003389458389176670"
 
   const asset: string = DaiAddress;
@@ -139,13 +141,13 @@ async function main() {
   //AaveRepayOperation((bytes,bool,uint256,uint256),uint256,uint256)
   const permitInfo = await getApprovePermit(aWETH, fakeSigner, flashLoan.address, amountIn);
 
-  let params = ethers.utils.defaultAbiCoder.encode(["tuple(bytes,bool,uint256,uint256)", "uint256", "uint256","tuple(uint256,uint8,bytes32,bytes32)"],
-    [[path, single, amountIn, repayAmount.toString()], flashloanAmount.toString(), interestRateMode.toString(),
-    [permitInfo.deadline, permitInfo.sig.v, permitInfo.sig.r, permitInfo.sig.s]]);
-  params = ethers.utils.solidityPack(["bytes4", "bytes"], ["0x8fd8f362", params]);
+  //0xd8ad4ac2
+  const params = ethers.utils.solidityPack(["bool", "uint256", "uint256", "uint256", "uint8", "bytes32", "bytes32", "bytes", "bytes4"],
+    [single, amountIn, interestRateMode.toString(), permitInfo.deadline, permitInfo.sig.v, permitInfo.sig.r, permitInfo.sig.s, path, "0xd8ad4ac2"]);
   console.log("params: ", params)
-
-  // await aWETH.approve(flashLoan.address, depositAmount); // for test, need to improve
+  console.log("v: ", permitInfo.sig.v);
+  console.log("r: ", permitInfo.sig.r);
+  console.log("s: ", permitInfo.sig.s);
 
   const tx3 = await AAVE_POOL.connect(fakeSigner).flashLoanSimple(
     flashLoan.address,

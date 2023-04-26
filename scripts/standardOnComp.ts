@@ -159,23 +159,24 @@ async function main() {
 
     console.log(`   route paths: ${paths}`);
     console.log(`   trade: ${route.trade}`);
-    const single = !route.methodParameters.calldata.startsWith('0x5ae401dc');
+    const single = route.methodParameters.calldata.startsWith('0x5ae401dc');
+    console.log(route.methodParameters.calldata);
     // const single = true;
+    // const amountIn = 11073514753;
+    //const path = 0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb480001f4c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2
 
     const asset: string = WETHAddress;
     const amount: ethers.BigNumber = flashloanAmount;
     // this params is used to meet the condition in executeOperation
     // params: 1. address is long asset address 2. Slippage 500 ~ 0.05% 3000 ~ 0.3% 10000 ~ 1%
     // const poolFee = 3000;
-    const mode = 2;
     let amountIn = amountInMax.toString();
-    // console.log(amountIn);
+    console.log(amountIn);
     // params: mode + single + expectAmountOut + amountInput + path
-    // function CompOperation(tuple(bytes,bool,uint256,uint256),uint256)
-    let params = ethers.utils.defaultAbiCoder.encode(["tuple(bytes,bool,uint256,uint256)", "uint256"], [[path, single, amountIn, repayAmount.toString()], flashloanAmount]);
-    params = ethers.utils.solidityPack(["bytes4", "bytes"], ["0xfe235f79", params]);
+    // function CompOperation(bool,uint256,bytes,bytes4)
+    const params = ethers.utils.solidityPack(["bool", "uint256", "bytes", "bytes4"], [single, amountIn, path, "0x16d1fb86"]);
     console.log("params: ", params)
-    // const params = ethers.utils.formatBytes32String("hello");
+
     await allowFlashLoanContract(fakeSigner, flashLoan.address);
 
     const tx3 = await AAVE_POOL.connect(fakeSigner).flashLoanSimple(
@@ -190,7 +191,7 @@ async function main() {
     console.log("After leverage, user borrowBalanceOf is: ", borrowBalanceOf);
     userCollateralBalance = await COMET.collateralBalanceOf(fakeSigner.address, WETHAddress);
     console.log("After leverage, user collateral balance is: ", userCollateralBalance);
-    
+
 }
 
 // We recommend this pattern to be able to use async/await everywhere
