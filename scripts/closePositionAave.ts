@@ -141,7 +141,8 @@ async function main() {
   //AaveRepayOperation((bytes,bool,uint256,uint256),uint256,uint256)
   const permitInfo = await getApprovePermit(aWETH, fakeSigner, flashLoan.address, amountIn);
 
-  //0xd8ad4ac2
+  // params: single+amountInMaximum+interestRateMode+deadline+v+r+s+path+selector,
+  // bool+uint256+uint256+uint256+uint8+bytes32+bytes32+bytes+bytes4
   const params = ethers.utils.solidityPack(["bool", "uint256", "uint256", "uint256", "uint8", "bytes32", "bytes32", "bytes", "bytes4"],
     [single, amountIn, interestRateMode.toString(), permitInfo.deadline, permitInfo.sig.v, permitInfo.sig.r, permitInfo.sig.s, path, "0xd8ad4ac2"]);
   console.log("params: ", params)

@@ -176,7 +176,7 @@ async function main() {
 
     // const single = true;
 
-    // function AaveOperation(address[],uint256[],uint256[],address,bytes)
+    // params: single+amountOutMinimum+path, bool+uint256+bytes
     const params = ethers.utils.solidityPack(["bool", "uint256", "bytes", "bytes4"], [single, minimumAmount.toString(), path, "0x80ddec56"]);
 
     console.log("");

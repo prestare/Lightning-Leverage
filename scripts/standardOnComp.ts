@@ -172,8 +172,8 @@ async function main() {
     // const poolFee = 3000;
     let amountIn = amountInMax.toString();
     console.log(amountIn);
-    // params: mode + single + expectAmountOut + amountInput + path
-    // function CompOperation(bool,uint256,bytes,bytes4)
+    
+    // params: single+amountInMaximum+path+selector, bool+uint256+bytes+bytes4
     const params = ethers.utils.solidityPack(["bool", "uint256", "bytes", "bytes4"], [single, amountIn, path, "0x16d1fb86"]);
     console.log("params: ", params)
 
