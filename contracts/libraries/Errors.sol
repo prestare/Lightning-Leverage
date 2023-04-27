@@ -8,5 +8,4 @@ library Errors {
     string public constant ZERO_ADDRESS_NOT_VALID = '4'; // Zero address is not valid
     string public constant IS_INITIALIZED = '5'; // Contract is initialized
     string public constant IMPLEMENTATION_NOT_CONTRACT = '6'; // ERC1967: new implementation is not a contract
-
 }

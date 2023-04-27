@@ -29,7 +29,7 @@ import {
     getTotalCollateralBase,
     getTotalDebtBase
 } from "./helpers/aaveHelper";
-import {deployFlashLoan, deployFlashLoanProxy} from "./helpers/deployHelper";
+import {deployFlashLoan, deployFlashLoanProxy, deployPathLibrary} from "./helpers/deployHelper";
 import {hre} from "./constant";
 import {
   WETH_TOKEN,
@@ -45,7 +45,9 @@ async function main() {
 
     await impersonateAccount(WALLET_ADDRESS);
     const fakeSigner: SignerWithAddress = await hre.ethers.getSigner(WALLET_ADDRESS);
-    const flashLoan = await deployFlashLoan(fakeSigner);
+
+    const pathLib = await deployPathLibrary(fakeSigner);
+    const flashLoan = await deployFlashLoan(fakeSigner, pathLib);
     const flashLoanProxy = await deployFlashLoanProxy(fakeSigner, flashLoan.address);
     
     console.log("Now user address: ", fakeSigner.address);

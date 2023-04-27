@@ -19,7 +19,7 @@ import {
   getUserDebtTokenBalance,
   getApprovePermit
 } from "./helpers/aaveHelper";
-import { deployFlashLoan, deployFlashLoanProxy } from "./helpers/deployHelper";
+import { deployFlashLoan, deployFlashLoanProxy, deployPathLibrary } from "./helpers/deployHelper";
 import { hre } from "./constant";
 import {
   WETH_TOKEN,
@@ -35,7 +35,9 @@ import {
 async function main() {
 
   const [fakeSigner, other]: SignerWithAddress[] = await hre.ethers.getSigners();
-  const flashLoan = await deployFlashLoan(fakeSigner);
+
+  const pathLib = await deployPathLibrary(fakeSigner);
+  const flashLoan = await deployFlashLoan(fakeSigner, pathLib);
   const flashLoanProxy = await deployFlashLoanProxy(fakeSigner, flashLoan.address);
   console.log("Now user address: ", fakeSigner.address);
 
