@@ -7,7 +7,7 @@ import {
     USDCAddress,
 } from './address';
 import { hre } from "./constant";
-import { deployFlashLoan } from "./helpers/deployHelper";
+import { deployFlashLoan, deployFlashLoanProxy } from "./helpers/deployHelper";
 import {
     calcUserAssetValue,
     calcNeedBorrowValue,
@@ -49,6 +49,7 @@ async function main() {
     await impersonateAccount(WALLET_ADDRESS);
     const fakeSigner: SignerWithAddress = await hre.ethers.getSigner(WALLET_ADDRESS);
     const flashLoan = await deployFlashLoan(fakeSigner);
+    const flashLoanProxy = await deployFlashLoanProxy(fakeSigner, flashLoan.address);
     // we init AAVE_POOL to calculate flash loan fee, 
     console.log("Now user address: ", fakeSigner.address);
 
@@ -177,10 +178,10 @@ async function main() {
     const params = ethers.utils.solidityPack(["bool", "uint256", "bytes", "bytes4"], [single, amountIn, path, "0x16d1fb86"]);
     console.log("params: ", params)
 
-    await allowFlashLoanContract(fakeSigner, flashLoan.address);
+    await allowFlashLoanContract(fakeSigner, flashLoanProxy.address);
 
     const tx3 = await AAVE_POOL.connect(fakeSigner).flashLoanSimple(
-        flashLoan.address,
+        flashLoanProxy.address,
         asset,
         amount,
         params,

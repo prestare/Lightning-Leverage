@@ -21,13 +21,14 @@ import {
   getUserBorrowCapacityBase,
   COMET,
 } from './helpers/compHelper';
-import { deployFlashLoan } from "./helpers/deployHelper";
+import { deployFlashLoan, deployFlashLoanProxy } from "./helpers/deployHelper";
 import { hre } from "./constant";
 
 async function main() {
 
   const [fakeSigner, other]: SignerWithAddress[] = await hre.ethers.getSigners();
   const flashLoan = await deployFlashLoan(fakeSigner);
+  const flashLoanProxy = await deployFlashLoanProxy(fakeSigner, flashLoan.address);
   console.log("Now user address: ", fakeSigner.address);
 
   await initAAVEContract(fakeSigner);
@@ -133,10 +134,10 @@ async function main() {
   const params = ethers.utils.solidityPack(["bool", "uint256", "bytes", "bytes4"], [single, amountIn, path, "0xeedcb9b9", ]);
   console.log("params: ", params)
 
-  await allowFlashLoanContract(fakeSigner, flashLoan.address);
+  await allowFlashLoanContract(fakeSigner, flashLoanProxy.address);
 
   const tx3 = await AAVE_POOL.connect(fakeSigner).flashLoanSimple(
-      flashLoan.address,
+      flashLoanProxy.address,
       asset,
       amount,
       params,

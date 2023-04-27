@@ -19,7 +19,7 @@ import {
   getUserDebtTokenBalance,
   getApprovePermit
 } from "./helpers/aaveHelper";
-import { deployFlashLoan } from "./helpers/deployHelper";
+import { deployFlashLoan, deployFlashLoanProxy } from "./helpers/deployHelper";
 import { hre } from "./constant";
 import {
   WETH_TOKEN,
@@ -36,6 +36,7 @@ async function main() {
 
   const [fakeSigner, other]: SignerWithAddress[] = await hre.ethers.getSigners();
   const flashLoan = await deployFlashLoan(fakeSigner);
+  const flashLoanProxy = await deployFlashLoanProxy(fakeSigner, flashLoan.address);
   console.log("Now user address: ", fakeSigner.address);
 
   await initAAVEContract(fakeSigner);
@@ -129,17 +130,14 @@ async function main() {
   // const amountIn = maximumAmount.toString();
 
   const single = true;
-  // const path = "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc20001f46b175474e89094c44da98b954eedeac495271d0f"
-  // const amountIn = "1003389458389176670"
   const path = "0x6b175474e89094c44da98b954eedeac495271d0f0001f4c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
   const amountIn = "1003389458389176670"
 
   const asset: string = DaiAddress;
   const amount: ethers.BigNumber = flashloanAmount;
-
   const interestRateMode: ethers.BigNumber = BigNumber.from("2");
-  //AaveRepayOperation((bytes,bool,uint256,uint256),uint256,uint256)
-  const permitInfo = await getApprovePermit(aWETH, fakeSigner, flashLoan.address, amountIn);
+  
+  const permitInfo = await getApprovePermit(aWETH, fakeSigner, flashLoanProxy.address, amountIn);
 
   // params: single+amountInMaximum+interestRateMode+deadline+v+r+s+path+selector,
   // bool+uint256+uint256+uint256+uint8+bytes32+bytes32+bytes+bytes4
@@ -151,7 +149,7 @@ async function main() {
   console.log("s: ", permitInfo.sig.s);
 
   const tx3 = await AAVE_POOL.connect(fakeSigner).flashLoanSimple(
-    flashLoan.address,
+    flashLoanProxy.address,
     asset,
     amount,
     params,
