@@ -1,17 +1,40 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
-import { Signer } from 'ethers';
 import { hre } from '../constant';
-import { 
-    poolAddressProvider, 
+import {
+    cUSDC_comet_ADDRESS,
+    poolAddressProvider,
+    USDCAddress,
     V3_SWAP_ROUTER_ADDRESS,
 } from '../address';
+import { ethers } from 'ethers';
 
-export const deployFlashLoan =async (signer: SignerWithAddress) => {
+export const deployFlashLoanProxy = async (signer: SignerWithAddress, implementation: string) => {
+    console.log("impl:: ", implementation);
+    const flashLoanProxyFact = await hre.ethers.getContractFactory("FlashLoanProxy");
+    const data = encodeInitData();
+    let flashLoanProxy = await flashLoanProxyFact.connect(signer).deploy(implementation, data);
+    await flashLoanProxy.deployed();
+    console.log(
+        `flashLoanProxy deployed to ${flashLoanProxy.address}`
+    );
+
+    return flashLoanProxy;
+}
+
+export const deployFlashLoan = async (signer: SignerWithAddress) => {
     let flashLoanFact = await hre.ethers.getContractFactory("FlashLoan");
-    var flashLoan = await flashLoanFact.connect(signer).deploy(poolAddressProvider, V3_SWAP_ROUTER_ADDRESS, signer.address);
+    var flashLoan = await flashLoanFact.connect(signer).deploy();
     await flashLoan.deployed();
     console.log(
         `flash loan deployed to ${flashLoan.address}`
-      );
+    );
     return flashLoan;
+}
+
+const encodeInitData = () => {
+    let data = ethers.utils.defaultAbiCoder.encode(["address", "address", "address", "address"],
+        [poolAddressProvider, cUSDC_comet_ADDRESS, V3_SWAP_ROUTER_ADDRESS, USDCAddress]);
+    data = ethers.utils.solidityPack(["bytes4", "bytes"], ["0xf8c8765e", data]);
+
+    return data;
 }

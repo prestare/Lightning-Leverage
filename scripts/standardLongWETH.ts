@@ -29,7 +29,7 @@ import {
     getTotalCollateralBase,
     getTotalDebtBase
 } from "./helpers/aaveHelper";
-import {deployFlashLoan} from "./helpers/deployHelper";
+import {deployFlashLoan, deployFlashLoanProxy} from "./helpers/deployHelper";
 import {hre} from "./constant";
 import {
   WETH_TOKEN,
@@ -46,6 +46,8 @@ async function main() {
     await impersonateAccount(WALLET_ADDRESS);
     const fakeSigner: SignerWithAddress = await hre.ethers.getSigner(WALLET_ADDRESS);
     const flashLoan = await deployFlashLoan(fakeSigner);
+    const flashLoanProxy = await deployFlashLoanProxy(fakeSigner, flashLoan.address);
+    
     console.log("Now user address: ", fakeSigner.address);
   
     await initAAVEContract(fakeSigner);
@@ -162,8 +164,8 @@ async function main() {
     const debtTokenAddress = await getAssetDebtTokenAddress(DaiAddress);
     const debtToken = debtTokenContract(debtTokenAddress, fakeSigner);
     // it need to be approved by user, so contract can credit the debt to user address
-    await apporve2Borrow(debtToken, fakeSigner, flashLoan.address, flashloanAmount); 
-    await checkBorrowAllowance(debtToken, fakeSigner.address, flashLoan.address);
+    await apporve2Borrow(debtToken, fakeSigner, flashLoanProxy.address, flashloanAmount); 
+    await checkBorrowAllowance(debtToken, fakeSigner.address, flashLoanProxy.address);
     
     const assets : string[] = [DaiAddress,];
     const amounts : ethers.BigNumber[] = [flashloanAmount, ]; 
@@ -183,7 +185,7 @@ async function main() {
     console.log("Transaction Begin...");
     
     const tx2 = await AAVE_POOL.connect(fakeSigner).flashLoan(
-      flashLoan.address,
+      flashLoanProxy.address,
       assets,
       amounts,
       interestRateModes,

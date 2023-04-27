@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: No License
 pragma solidity ^0.8.0;
 
-import {IFlashLoanSimpleReceiver} from "./interfaces/AAVE/IFlashLoanSimpleReceiver.sol";
-import {IFlashLoanReceiver} from "./interfaces/AAVE/IFlashLoanReceiver.sol";
 import {IPoolAddressesProvider} from "./interfaces/AAVE/IPoolAddressesProvider.sol";
 import {IPool} from "./interfaces/AAVE/IPool.sol";
 import {IERC20} from "./interfaces/IERC20.sol";
@@ -18,7 +16,7 @@ import "./libraries/Errors.sol";
 
 import "hardhat/console.sol";
 
-contract FlashLoan is IFlashLoanSimpleReceiver {
+contract FlashLoan {
     using Path for bytes;
 
     struct SwapParams {
@@ -36,106 +34,59 @@ contract FlashLoan is IFlashLoanSimpleReceiver {
         bytes32 s;
     }
 
-    IPoolAddressesProvider public override ADDRESSES_PROVIDER;
+    struct AaveRepayParams {
+        bool single;
+        uint8 v;
+        uint256 amountInMaximum;
+        uint256 repayAmount;
+        uint256 interestRateMode;
+        uint256 deadline;
+        bytes32 r;
+        bytes32 s;
+        bytes path;
+    }
+
+    struct CompRepayParams {
+        bool single;
+        uint256 amountInMaximum;
+        uint256 repayAmount;
+        bytes path;
+    }
+
+    IPoolAddressesProvider public ADDRESSES_PROVIDER;
+    IPoolDataProvider public POOL_DATA_PROVIDER;
+    IPool public POOL;
     IComet public COMET;
     ISwapRouter public SWAP_ROUTER;
 
-    IPool public override POOL;
-    IPoolDataProvider public POOL_DATA_PROVIDER;
-    address public OWNER;
+    // bytes32 public constant LIDOMODE = "0";
+    // address public LIDOADDRESS = 0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84;
+    // address payable public constant WSTADDRESS =
+    //     payable(0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0);
+    address public USDC;
 
-    bytes32 public constant LIDOMODE = "0";
-    address public LIDOADDRESS = 0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84;
-    address payable public WSTADDRESS =
-        payable(0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0);
-    address public USDC = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
+    bool private _initialized;
 
-    constructor(address provider, address swapRouter, address owner) {
+    function initialize(
+        address provider,
+        address comet,
+        address swapRouter,
+        address usdc
+    ) external {
+        require(!_initialized, Errors.IS_INITIALIZED);
+        _initialized = true;
+
         ADDRESSES_PROVIDER = IPoolAddressesProvider(provider);
-        address comet = 0xc3d688B66703497DAA19211EEdff47f25384cdc3;
-        COMET = IComet(comet);
-        SWAP_ROUTER = ISwapRouter(swapRouter);
         POOL = IPool(ADDRESSES_PROVIDER.getPool());
-        OWNER = owner;
         POOL_DATA_PROVIDER = IPoolDataProvider(
             ADDRESSES_PROVIDER.getPoolDataProvider()
         );
-    }
 
-    function executeOperation(
-        address asset,
-        uint256 amount,
-        uint256 premium,
-        address initiator,
-        bytes calldata params
-    ) external returns (bool) {
-        address implematation = address(this);
-
-        assembly {
-            calldatacopy(0, 0, calldatasize())
-            calldatacopy(0, add(params.offset, sub(params.length, 4)), 4) // 4: selector bytes4
-            // Call the implementation.
-            // out and outsize are 0 because we don't know the size yet.
-            let result := delegatecall(
-                gas(),
-                implematation,
-                0,
-                calldatasize(),
-                0,
-                0
-            )
-
-            // Copy the returned data.
-            returndatacopy(0, 0, returndatasize())
-
-            switch result
-            // delegatecall returns 0 on error.
-            case 0 {
-                revert(0, returndatasize())
-            }
-            default {
-                return(0, returndatasize())
-            }
-        }
-    }
-
-    function executeOperation(
-        address[] calldata assets,
-        uint256[] calldata amounts,
-        uint256[] calldata premiums,
-        address initiator,
-        bytes calldata params
-    ) external returns (bool) {
-        address implematation = address(this);
-        console.logBytes(msg.data);
-        console.logBytes(params);
-
-        assembly {
-            calldatacopy(0, 0, calldatasize())
-            calldatacopy(0, add(params.offset, sub(params.length, 4)), 4) // 4: selector bytes4
-            // Call the implementation.
-            // out and outsize are 0 because we don't know the size yet.
-            let result := delegatecall(
-                gas(),
-                implematation,
-                0,
-                calldatasize(),
-                0,
-                0
-            )
-
-            // Copy the returned data.
-            returndatacopy(0, 0, returndatasize())
-
-            switch result
-            // delegatecall returns 0 on error.
-            case 0 {
-                revert(0, returndatasize())
-            }
-            default {
-                return(0, returndatasize())
-            }
-        }
+        // address comet = 0xc3d688B66703497DAA19211EEdff47f25384cdc3;
+        COMET = IComet(comet);
+        SWAP_ROUTER = ISwapRouter(swapRouter);
+        // address usdc = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
+        USDC = usdc;
     }
 
     // selector: 0x80ddec56
@@ -145,7 +96,11 @@ contract FlashLoan is IFlashLoanSimpleReceiver {
         uint256[] calldata premiums,
         address initiator,
         bytes calldata params
-    ) public returns (bool) {
+    ) external returns (bool) {
+        console.log("USDC: ", USDC);
+        console.log("SWAP_ROUTER: ", address(SWAP_ROUTER));
+        console.log("COMET: ", address(COMET));
+
         // params: single+amountOutMinimum+path, bool+uint256+bytes
         bool single = params.toBool(0);
         uint256 amountOutMinimum = params.toUint256(1);
@@ -172,7 +127,7 @@ contract FlashLoan is IFlashLoanSimpleReceiver {
         uint256 premiums,
         address initiator,
         bytes calldata params
-    ) public returns (bool) {
+    ) external returns (bool) {
         // params: single+amountIn+path, bool+uint256+bytes+bytes4
         bool single = params.toBool(0);
         uint256 amountIn = params.toUint256(1);
@@ -197,18 +152,6 @@ contract FlashLoan is IFlashLoanSimpleReceiver {
         return IERC20(Long).approve(address(POOL), amountOutMinimum);
     }
 
-    struct AaveRepayParams {
-        bool single;
-        uint8 v;
-        uint256 amountInMaximum;
-        uint256 repayAmount;
-        uint256 interestRateMode;
-        uint256 deadline;
-        bytes32 r;
-        bytes32 s;
-        bytes path;
-    }
-
     // selector: 0xd8ad4ac2
     function AaveRepayOperation(
         address Short,
@@ -216,7 +159,7 @@ contract FlashLoan is IFlashLoanSimpleReceiver {
         uint256 premiums,
         address initiator,
         bytes calldata params
-    ) public returns (bool) {
+    ) external returns (bool) {
         // params: single+amountInMaximum+interestRateMode+deadline+v+r+s+path+selector,
         // bool+uint256+uint256+uint256+uint8+bytes32+bytes32+bytes+bytes4
         AaveRepayParams memory aaveRepayParams = AaveRepayParams({
@@ -299,13 +242,6 @@ contract FlashLoan is IFlashLoanSimpleReceiver {
             );
     }
 
-    struct CompRepayParams {
-        bool single;
-        uint256 amountInMaximum;
-        uint256 repayAmount;
-        bytes path;
-    }
-
     // selector: 0xeedcb9b9
     function CompRepayOperation(
         address Short,
@@ -313,7 +249,7 @@ contract FlashLoan is IFlashLoanSimpleReceiver {
         uint256 premiums,
         address initiator,
         bytes calldata params
-    ) public returns (bool) {
+    ) external returns (bool) {
         // params: single+amountInMaximum+path+selector,
         // bool+uint256+bytes+bytes4
         CompRepayParams memory compRepayParams = CompRepayParams({
@@ -342,7 +278,12 @@ contract FlashLoan is IFlashLoanSimpleReceiver {
         console.log("borrowBalanceOf", borrowBalanceOf);
         console.log("tx.origin: ", initiator);
 
-        COMET.withdrawFrom(initiator, address(this), Long, compRepayParams.amountInMaximum);
+        COMET.withdrawFrom(
+            initiator,
+            address(this),
+            Long,
+            compRepayParams.amountInMaximum
+        );
 
         SwapParams memory swapParams = SwapParams({
             amount: compRepayParams.repayAmount,
@@ -357,7 +298,11 @@ contract FlashLoan is IFlashLoanSimpleReceiver {
 
         _safeApprove(Short, address(POOL), compRepayParams.repayAmount);
 
-        return IERC20(Long).transfer(initiator, compRepayParams.amountInMaximum - amountIn);
+        return
+            IERC20(Long).transfer(
+                initiator,
+                compRepayParams.amountInMaximum - amountIn
+            );
     }
 
     // selector: 0x16d1fb86
@@ -388,18 +333,6 @@ contract FlashLoan is IFlashLoanSimpleReceiver {
     //     console.log("finish _excuteLIDO Op");
     //     return true;
     // }
-
-    function leverageAAVEPos(
-        address asset,
-        uint256 amount,
-        address user,
-        uint16 refer
-    ) internal returns (bool) {
-        // approve pool to pull money form this to deposit
-        IERC20(asset).approve(address(POOL), amount);
-        POOL.supply(asset, amount, user, refer);
-        return true;
-    }
 
     function swap(
         SwapParams memory swapParams,
@@ -556,6 +489,18 @@ contract FlashLoan is IFlashLoanSimpleReceiver {
             });
 
         amountIn = SWAP_ROUTER.exactOutput(params);
+    }
+
+    function leverageAAVEPos(
+        address asset,
+        uint256 amount,
+        address user,
+        uint16 refer
+    ) internal returns (bool) {
+        // approve pool to pull money form this to deposit
+        IERC20(asset).approve(address(POOL), amount);
+        POOL.supply(asset, amount, user, refer);
+        return true;
     }
 
     function _safeApprove(address token, address to, uint256 value) internal {
