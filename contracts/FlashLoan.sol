@@ -53,6 +53,17 @@ contract FlashLoan {
         bytes path;
     }
 
+    struct AaveChangeParams {
+        bool single;
+        uint8 v;
+        uint256 amountInMaximum;
+        uint256 repayAmount;
+        uint256 deadline;
+        bytes32 r;
+        bytes32 s;
+        bytes path;
+    }
+
     IPoolAddressesProvider public ADDRESSES_PROVIDER;
     IPoolDataProvider public POOL_DATA_PROVIDER;
     IPool public POOL;
@@ -173,13 +184,6 @@ contract FlashLoan {
             s: bytes32(params[130:162]),
             path: params[162:params.length - 4] // remove selector
         });
-        console.log("amountInMaximum", params.toUint256(1));
-        console.log("interestRateMode:", params.toUint256(33));
-        console.log("path");
-        console.logBytes(aaveRepayParams.path);
-        console.log(aaveRepayParams.v);
-        console.logBytes32(aaveRepayParams.r);
-        console.logBytes32(aaveRepayParams.s);
 
         (, address Long, ) = aaveRepayParams.path.decodeLastPool();
 
@@ -268,15 +272,7 @@ contract FlashLoan {
 
         IERC20(Short).approve(address(COMET), amount);
 
-        uint256 balance = IERC20(Short).balanceOf(address(this));
-        console.log("balance", balance);
-        uint256 borrowBalanceOf = COMET.borrowBalanceOf(initiator);
-        console.log("borrowBalanceOf1", borrowBalanceOf);
-
         COMET.supplyTo(initiator, Short, amount);
-        borrowBalanceOf = COMET.borrowBalanceOf(initiator);
-        console.log("borrowBalanceOf", borrowBalanceOf);
-        console.log("tx.origin: ", initiator);
 
         COMET.withdrawFrom(
             initiator,
@@ -305,7 +301,134 @@ contract FlashLoan {
             );
     }
 
-    // selector: 0x16d1fb86
+    // selector: 0xc85a890a
+    function changeDepositAave(
+        address asset,
+        uint256 amount,
+        uint256 premiums,
+        address initiator,
+        bytes calldata params
+    ) external returns (bool) {
+        leverageAAVEPos(asset, amount, initiator, 0);
+
+        // params: single+amountInMaximum+deadline+v+r+s+path+selector,
+        // bool+uint256+uint256+uint8+bytes32+bytes32+bytes+bytes4
+        AaveChangeParams memory aaveChangeParams = AaveChangeParams({
+            single: params.toBool(0),
+            v: params.toUint8(97),
+            amountInMaximum: params.toUint256(1),
+            repayAmount: amount + premiums,
+            deadline: params.toUint256(33),
+            r: bytes32(params[66:98]),
+            s: bytes32(params[98:130]),
+            path: params[130:params.length - 4] // remove selector
+        });
+
+        (, address fromToken, ) = aaveChangeParams.path.decodeLastPool();
+
+        (address aToken, , ) = POOL_DATA_PROVIDER.getReserveTokensAddresses(
+            fromToken
+        );
+
+        console.log("aToken: ", aToken);
+        IAToken(aToken).permit(
+            initiator,
+            address(this),
+            aaveChangeParams.amountInMaximum,
+            aaveChangeParams.deadline,
+            aaveChangeParams.v,
+            aaveChangeParams.r,
+            aaveChangeParams.s
+        );
+
+        IAToken(aToken).transferFrom(
+            initiator,
+            address(this),
+            aaveChangeParams.amountInMaximum
+        );
+
+        uint256 withdrawAmount = POOL.withdraw(
+            fromToken,
+            aaveChangeParams.amountInMaximum,
+            address(this)
+        );
+        console.log("withdrawAmount ", withdrawAmount);
+        console.log("repayAmount: ", aaveChangeParams.repayAmount);
+
+        SwapParams memory swapParams = SwapParams({
+            amount: amount + premiums,
+            amountM: aaveChangeParams.amountInMaximum,
+            single: aaveChangeParams.single,
+            recipient: address(this),
+            path: aaveChangeParams.path
+        });
+
+        uint256 amountIn = swap(swapParams, true);
+        console.log("amountIn: ", amountIn);
+
+        console.log("amountInMaximum: ", aaveChangeParams.amountInMaximum);
+        _safeApprove(asset, address(POOL), aaveChangeParams.repayAmount);
+
+        return
+            IERC20(fromToken).transfer(
+                initiator,
+                aaveChangeParams.amountInMaximum - amountIn
+            );
+    }
+
+    // selector: 0x4cc63017
+    function changeDepositComp(
+        address asset,
+        uint256 amount,
+        uint256 premiums,
+        address initiator,
+        bytes calldata params
+    ) external returns (bool) {
+        // params: single+amountInMaximum+path+selector,
+        // bool+uint256+bytes+bytes4
+        CompRepayParams memory compRepayParams = CompRepayParams({
+            single: params.toBool(0),
+            amountInMaximum: params.toUint256(1),
+            repayAmount: amount + premiums,
+            path: params[33:params.length - 4] // remove selector
+        });
+        // bool single = params.toBool(0);
+        // uint256 amountInMaximum = params.toUint256(1);
+        // bytes memory path = params[33:params.length - 4];
+        // uint256 repayAmount = amount + premiums;
+        (, address fromToken, ) = compRepayParams.path.decodeLastPool();
+        console.log("amountInMaximum:", compRepayParams.amountInMaximum);
+
+        IERC20(asset).approve(address(COMET), amount);
+
+        COMET.supplyTo(initiator, asset, amount);
+
+        COMET.withdrawFrom(
+            initiator,
+            address(this),
+            fromToken,
+            compRepayParams.amountInMaximum
+        );
+
+        SwapParams memory swapParams = SwapParams({
+            amount: compRepayParams.repayAmount,
+            amountM: compRepayParams.amountInMaximum,
+            single: compRepayParams.single,
+            recipient: address(this),
+            path: compRepayParams.path
+        });
+
+        uint256 amountIn = swap(swapParams, true);
+        console.log("amountIn: ", amountIn);
+
+        _safeApprove(asset, address(POOL), compRepayParams.repayAmount);
+
+        return
+            IERC20(fromToken).transfer(
+                initiator,
+                compRepayParams.amountInMaximum - amountIn
+            );
+    }
 
     // // use transfer and send run out of gas!!!!!
     // // the Out-of-gas problem may be caused by sending eth between the contract and weth, and transfer eth to lido to wstcontract
