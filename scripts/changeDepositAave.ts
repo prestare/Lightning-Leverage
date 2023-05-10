@@ -60,7 +60,7 @@ async function main() {
   const tx1 = await WETH_GATEWAY.connect(fakeSigner).depositETH(fakeSigner.address, fakeSigner.address, 0, { value: depositAmount });
   console.log("After Deposit...");
   // check if we actually have one aWETH
-  const aTokenBalance = await getUserATokenBalance(aWETH, fakeSigner.address);
+  let aTokenBalance = await getUserATokenBalance(aWETH, fakeSigner.address);
   console.log("   user a%sBalance is ", "ETH", num2Fixed(aTokenBalance, 18));
 
   // check user account data
@@ -96,6 +96,7 @@ async function main() {
   if (route == null || route.methodParameters == undefined) throw 'No route loaded';
 
   const { route: routePath, outputAmount } = route.trade.swaps[0];
+  console.log("amountOut: ", outputAmount.quotient.toString());
   const minimumOutputAmountString = route.trade.minimumAmountOut(slippageTolerance, outputAmount).quotient.toString();
   const minimumOutputAmount = BigNumber.from(minimumOutputAmountString);
 
@@ -103,7 +104,7 @@ async function main() {
   console.log(`   minimum Output Amount: ${minimumOutputAmount}`);
   console.log(`   route path: ${path}`);
 
-  console.log(`   You'll pay ${route.quote.toFixed()} of ${WETH_TOKEN.symbol}`);
+  console.log(`   You'll pay ${route.quote.toFixed()} of USDC`);
   // output quote minus gas fees
   console.log(`   Gas Adjusted Quote: ${route.quoteGasAdjusted.toFixed()}`);
   console.log(`   Gas Used Quote Token: ${route.estimatedGasUsedQuoteToken.toFixed()}`);
@@ -116,14 +117,16 @@ async function main() {
   console.log(`   trade: ${route.trade}`);
 
   const single = !route.methodParameters.calldata.startsWith('0x5ae401dc');
-  const amountIn = aTokenBalance;
-  const flashLoanAmount = await calcFlashLoanAmountByRepayAmount(minimumOutputAmount);
-  
-  // const single = true;
-  // const path = "0x6b175474e89094c44da98b954eedeac495271d0f0001f4c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
-  // const amountIn = "1003389458389176670"
 
+  // const single = true;
+  // const path = "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc20001f46b175474e89094c44da98b954eedeac495271d0f";
+  // const minimumOutputAmount = BigNumber.from("3667518140694153770716");
+
+  const amountIn = aTokenBalance;
+  console.log("amountIn: ", amountIn);
   const asset: string = DaiAddress;
+  const flashLoanAmount = await calcFlashLoanAmountByRepayAmount(minimumOutputAmount);
+  console.log("flashLoanAmount: ", flashLoanAmount);
   const amount: ethers.BigNumber = flashLoanAmount;
   
   const permitInfo = await getApprovePermit(aWETH, fakeSigner, flashLoanProxy.address, amountIn);
@@ -148,6 +151,8 @@ async function main() {
   accountData = await AAVE_POOL.getUserAccountData(fakeSigner.address);
   showUserAccountData(accountData);
 
+  aTokenBalance = await getUserATokenBalance(aWETH, fakeSigner.address);
+  console.log("   user a%sBalance is ", "ETH", num2Fixed(aTokenBalance, 18));
 }
 
 // We recommend this pattern to be able to use async/await everywhere

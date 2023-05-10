@@ -324,7 +324,7 @@ contract FlashLoan {
             path: params[130:params.length - 4] // remove selector
         });
 
-        (, address fromToken, ) = aaveChangeParams.path.decodeLastPool();
+        (address fromToken, , ) = aaveChangeParams.path.decodeFirstPool();
 
         (address aToken, , ) = POOL_DATA_PROVIDER.getReserveTokensAddresses(
             fromToken
@@ -365,10 +365,11 @@ contract FlashLoan {
 
         uint256 amountOut = swap(swapParams, false);
 
-        console.log("amountInMaximum: ", aaveChangeParams.amountIn);
-        _safeApprove(asset, address(POOL), aaveChangeParams.repayAmount);
+        leverageAAVEPos(asset, amountOut - aaveChangeParams.repayAmount, initiator, 0);
 
-        return leverageAAVEPos(asset, amountOut - aaveChangeParams.repayAmount, initiator, 0);
+        _safeApprove(asset, address(POOL), aaveChangeParams.repayAmount);
+        
+        return true;
     }
 
     // selector: 0x4cc63017
