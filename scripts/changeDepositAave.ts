@@ -13,10 +13,8 @@ import {
   initAAVEContract,
   AAVE_POOL, WETH_GATEWAY,
   aTokenContract,
-  calcFlashLoanFee,
   showUserAccountData,
   num2Fixed,
-  getUserDebtTokenBalance,
   getApprovePermit,
   calcFlashLoanAmountByRepayAmount
 } from "./helpers/aaveHelper";
@@ -29,7 +27,6 @@ import {
 import {
   registryToken,
   swapRoute,
-  swapRouteExactOutPut,
   encodeRouteToPath
 } from "./helpers/UniswapQuoter";
 
