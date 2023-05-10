@@ -138,6 +138,12 @@ export const calcFlashLoanFee = async (amount: BigNumber) => {
     return fee;   
 }
 
+export const calcFlashLoanAmountByRepayAmount = async (amount: BigNumber) => {
+    const Premium = await AAVE_POOL.FLASHLOAN_PREMIUM_TOTAL();
+    const flashLoanAmount = amount.mul(10000).div(Premium.add(10000));
+    return flashLoanAmount;
+}
+
 // export interface AccountData {
 //     totalCollateralBase : BigNumber;
 //     totalDebtBase : BigNumber;

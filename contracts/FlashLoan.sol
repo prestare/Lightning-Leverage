@@ -56,7 +56,7 @@ contract FlashLoan {
     struct AaveChangeParams {
         bool single;
         uint8 v;
-        uint256 amountInMaximum;
+        uint256 amountIn;
         uint256 repayAmount;
         uint256 deadline;
         bytes32 r;
@@ -311,12 +311,12 @@ contract FlashLoan {
     ) external returns (bool) {
         leverageAAVEPos(asset, amount, initiator, 0);
 
-        // params: single+amountInMaximum+deadline+v+r+s+path+selector,
+        // params: single+amountIn+deadline+v+r+s+path+selector,
         // bool+uint256+uint256+uint8+bytes32+bytes32+bytes+bytes4
         AaveChangeParams memory aaveChangeParams = AaveChangeParams({
             single: params.toBool(0),
-            v: params.toUint8(97),
-            amountInMaximum: params.toUint256(1),
+            v: params.toUint8(65),
+            amountIn: params.toUint256(1),
             repayAmount: amount + premiums,
             deadline: params.toUint256(33),
             r: bytes32(params[66:98]),
@@ -334,7 +334,7 @@ contract FlashLoan {
         IAToken(aToken).permit(
             initiator,
             address(this),
-            aaveChangeParams.amountInMaximum,
+            aaveChangeParams.amountIn,
             aaveChangeParams.deadline,
             aaveChangeParams.v,
             aaveChangeParams.r,
@@ -344,36 +344,31 @@ contract FlashLoan {
         IAToken(aToken).transferFrom(
             initiator,
             address(this),
-            aaveChangeParams.amountInMaximum
+            aaveChangeParams.amountIn
         );
 
         uint256 withdrawAmount = POOL.withdraw(
             fromToken,
-            aaveChangeParams.amountInMaximum,
+            aaveChangeParams.amountIn,
             address(this)
         );
         console.log("withdrawAmount ", withdrawAmount);
         console.log("repayAmount: ", aaveChangeParams.repayAmount);
 
         SwapParams memory swapParams = SwapParams({
-            amount: amount + premiums,
-            amountM: aaveChangeParams.amountInMaximum,
+            amount: aaveChangeParams.amountIn,
+            amountM: aaveChangeParams.repayAmount,
             single: aaveChangeParams.single,
             recipient: address(this),
             path: aaveChangeParams.path
         });
 
-        uint256 amountIn = swap(swapParams, true);
-        console.log("amountIn: ", amountIn);
+        uint256 amountOut = swap(swapParams, false);
 
-        console.log("amountInMaximum: ", aaveChangeParams.amountInMaximum);
+        console.log("amountInMaximum: ", aaveChangeParams.amountIn);
         _safeApprove(asset, address(POOL), aaveChangeParams.repayAmount);
 
-        return
-            IERC20(fromToken).transfer(
-                initiator,
-                aaveChangeParams.amountInMaximum - amountIn
-            );
+        return leverageAAVEPos(asset, amountOut - aaveChangeParams.repayAmount, initiator, 0);
     }
 
     // selector: 0x4cc63017
