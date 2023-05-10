@@ -131,7 +131,7 @@ async function main() {
   // params: single+amountIn+deadline+v+r+s+path+selector,
   // bool+uint256+uint256+uint8+bytes32+bytes32+bytes+bytes4
   const params = ethers.utils.solidityPack(["bool", "uint256", "uint256", "uint8", "bytes32", "bytes32", "bytes", "bytes4"],
-    [single, amountIn, permitInfo.deadline, permitInfo.sig.v, permitInfo.sig.r, permitInfo.sig.s, path, "0xd8ad4ac2"]);
+    [single, amountIn, permitInfo.deadline, permitInfo.sig.v, permitInfo.sig.r, permitInfo.sig.s, path, "0xc85a890a"]);
   console.log("params: ", params)
   console.log("v: ", permitInfo.sig.v);
   console.log("r: ", permitInfo.sig.r);
