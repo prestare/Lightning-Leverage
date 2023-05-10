@@ -64,6 +64,13 @@ contract FlashLoan {
         bytes path;
     }
 
+    struct CompChangeParams {
+        bool single;
+        uint256 amountIn;
+        uint256 repayAmount;
+        bytes path;
+    }
+
     IPoolAddressesProvider public ADDRESSES_PROVIDER;
     IPoolDataProvider public POOL_DATA_PROVIDER;
     IPool public POOL;
@@ -368,7 +375,7 @@ contract FlashLoan {
         leverageAAVEPos(asset, amountOut - aaveChangeParams.repayAmount, initiator, 0);
 
         _safeApprove(asset, address(POOL), aaveChangeParams.repayAmount);
-        
+
         return true;
     }
 
@@ -380,50 +387,44 @@ contract FlashLoan {
         address initiator,
         bytes calldata params
     ) external returns (bool) {
-        // params: single+amountInMaximum+path+selector,
+        // params: single+amountIn+path+selector,
         // bool+uint256+bytes+bytes4
-        CompRepayParams memory compRepayParams = CompRepayParams({
+        CompChangeParams memory compChangeParams = CompChangeParams({
             single: params.toBool(0),
-            amountInMaximum: params.toUint256(1),
+            amountIn: params.toUint256(1),
             repayAmount: amount + premiums,
             path: params[33:params.length - 4] // remove selector
         });
-        // bool single = params.toBool(0);
-        // uint256 amountInMaximum = params.toUint256(1);
-        // bytes memory path = params[33:params.length - 4];
-        // uint256 repayAmount = amount + premiums;
-        (, address fromToken, ) = compRepayParams.path.decodeLastPool();
-        console.log("amountInMaximum:", compRepayParams.amountInMaximum);
+ 
+        (address fromToken, , ) = compChangeParams.path.decodeFirstPool();
+        console.log("amountIn:", compChangeParams.amountIn);
 
         IERC20(asset).approve(address(COMET), amount);
-
         COMET.supplyTo(initiator, asset, amount);
 
         COMET.withdrawFrom(
             initiator,
             address(this),
             fromToken,
-            compRepayParams.amountInMaximum
+            compChangeParams.amountIn
         );
 
         SwapParams memory swapParams = SwapParams({
-            amount: compRepayParams.repayAmount,
-            amountM: compRepayParams.amountInMaximum,
-            single: compRepayParams.single,
+            amount: compChangeParams.amountIn,
+            amountM: compChangeParams.repayAmount,
+            single: compChangeParams.single,
             recipient: address(this),
-            path: compRepayParams.path
+            path: compChangeParams.path
         });
 
-        uint256 amountIn = swap(swapParams, true);
-        console.log("amountIn: ", amountIn);
+        uint256 amountOut = swap(swapParams, false);
+        console.log("amountOut: ", amountOut);
 
-        _safeApprove(asset, address(POOL), compRepayParams.repayAmount);
+        _safeApprove(asset, address(POOL), compChangeParams.repayAmount);
+        _safeApprove(asset, address(COMET), amountOut - compChangeParams.repayAmount);
+        COMET.supplyTo(initiator, asset, amountOut - compChangeParams.repayAmount);
 
-        return
-            IERC20(fromToken).transfer(
-                initiator,
-                compRepayParams.amountInMaximum - amountIn
-            );
+        return true;
     }
 
     // // use transfer and send run out of gas!!!!!

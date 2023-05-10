@@ -5,6 +5,7 @@ import {
     WETHAddress,
     DaiAddress,
     USDCAddress,
+    WBTC_ADDRESS,
 } from './address';
 import { 
     AlphaRouter,
@@ -21,6 +22,14 @@ export const WETH_TOKEN = new Token(
     18,
     'WETH',
     'Wrapped Ether'
+)
+
+export const WBTC_TOKEN = new Token(
+    SupportedChainId.MAINNET,
+    WBTC_ADDRESS,
+    8,
+    'WBTC',
+    'Wrapped Bitcoin'
 )
 
 export const USDC_TOKEN = new Token(
