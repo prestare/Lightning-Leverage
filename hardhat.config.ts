@@ -40,7 +40,11 @@ const config: HardhatUserConfig = {
     },
     local: {
       url: "http://127.0.0.1:8545/"
-    }
+    },
+    localhost: {
+      url: "http://120.53.224.174:8545",
+      chainId: 2,
+    },
   }
 };
 

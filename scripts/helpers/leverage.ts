@@ -7,7 +7,7 @@ export const getMaxLeverage =async (assetLTV: bigint) => {
 }
 
 export const calcUserAssetValue =async (userBalance: BigNumber, price: BigNumber, decimal: number) => {
-    console.log("   User collateral token Balance =", num2Fixed(userBalance, 18));
+    console.log("   User collateral token Balance =", num2Fixed(userBalance, decimal));
     console.log("   Now Asset Price = $%d", num2Fixed(price, 8));
     let assetValue = price.mul(userBalance).div(ethers.utils.parseUnits("1.0", decimal));
     console.log("   User asset Value = ", ethers.utils.formatUnits(assetValue, 8));

@@ -1,5 +1,10 @@
 export const daiAbi = require("./abi/DAIABI.json");
 
+export const erc20 = [
+    "function balanceOf(address account) external view returns (uint256)",
+    "function approve(address spender, uint256 amount) external returns (bool)",
+    "function decimals() external view returns (uint8)",
+];
 export const aTokenAbi = [
     "function balanceOf(address account) external view returns (uint256)",
     "function approve(address spender, uint256 amount) external returns (bool)",
