@@ -113,7 +113,7 @@ async function main() {
   console.log(`   route paths: ${paths}`);
   console.log(`   trade: ${route.trade}`);
 
-  const single = !route.methodParameters.calldata.startsWith('0x5ae401dc');
+  const single = paths.length == 2;
 
   // const single = true;
   // const path = "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc20001f46b175474e89094c44da98b954eedeac495271d0f";

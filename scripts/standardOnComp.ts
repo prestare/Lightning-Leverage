@@ -162,8 +162,7 @@ async function main() {
 
     console.log(`   route paths: ${paths}`);
     console.log(`   trade: ${route.trade}`);
-    const single = route.methodParameters.calldata.startsWith('0x5ae401dc');
-    console.log(route.methodParameters.calldata);
+    const single = paths.length == 2;
     // const single = true;
     // const amountIn = 11073514753;
     //const path = 0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb480001f4c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2

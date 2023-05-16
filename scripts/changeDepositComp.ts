@@ -89,8 +89,8 @@ async function main() {
   const paths = route.route[0].tokenPath.map(value => value.symbol);
   console.log(`   route paths: ${paths}`);
   console.log(`   trade: ${route.trade}`);
-
-  const single = !route.methodParameters.calldata.startsWith('0x5ae401dc');
+  
+  const single = paths.length == 2;
 
   // const single = true;
   // const path = "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc20001f42260fac5e5542a773aa44fbcfedf7c193bc2c599";

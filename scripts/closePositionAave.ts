@@ -128,7 +128,7 @@ async function main() {
   // console.log(`   route paths: ${paths}`);
   // console.log(`   trade: ${route.trade}`);
 
-  // const single = !route.methodParameters.calldata.startsWith('0x5ae401dc');
+  // const single = paths.length == 2;
   // const amountIn = maximumAmount.toString();
 
   const single = true;
