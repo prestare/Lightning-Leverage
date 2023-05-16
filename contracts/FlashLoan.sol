@@ -13,19 +13,12 @@ import {IPoolDataProvider} from "./interfaces/AAVE/IPoolDataProvider.sol";
 import {ISwapRouter} from "@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol";
 import "./libraries/Path.sol";
 import "./libraries/Errors.sol";
+import "./libraries/SwapLogic.sol";
 
 import "hardhat/console.sol";
 
 contract FlashLoan {
     using Path for bytes;
-
-    struct SwapParams {
-        uint256 amount;
-        uint256 amountM;
-        bool single;
-        address recipient;
-        bytes path;
-    }
 
     struct ApprovePermitParams {
         uint256 deadline;
@@ -75,7 +68,7 @@ contract FlashLoan {
     IPoolDataProvider public POOL_DATA_PROVIDER;
     IPool public POOL;
     IComet public COMET;
-    ISwapRouter public SWAP_ROUTER;
+    address public SWAP_ROUTER;
 
     // bytes32 public constant LIDOMODE = "0";
     // address public LIDOADDRESS = 0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84;
@@ -102,7 +95,7 @@ contract FlashLoan {
 
         // address comet = 0xc3d688B66703497DAA19211EEdff47f25384cdc3;
         COMET = IComet(comet);
-        SWAP_ROUTER = ISwapRouter(swapRouter);
+        SWAP_ROUTER = swapRouter;
         // address usdc = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
         USDC = usdc;
     }
@@ -125,7 +118,7 @@ contract FlashLoan {
         bytes calldata path = params[33:params.length - 4]; // remove selector
         (, address Long, ) = path.decodeLastPool();
 
-        SwapParams memory swapParams = SwapParams({
+        SwapLogic.SwapParams memory swapParams = SwapLogic.SwapParams({
             amount: amounts[0],
             amountM: amountOutMinimum,
             single: single,
@@ -133,7 +126,7 @@ contract FlashLoan {
             path: path
         });
 
-        uint256 amountOut = swap(swapParams, false);
+        uint256 amountOut = SwapLogic.swap(swapParams, false, SWAP_ROUTER);
 
         return leverageAAVEPos(Long, amountOut, initiator, 0);
     }
@@ -158,14 +151,14 @@ contract FlashLoan {
         COMET.withdrawFrom(initiator, address(this), USDC, amountIn);
         IERC20(USDC).balanceOf(address(this));
 
-        SwapParams memory swapParams = SwapParams({
+        SwapLogic.SwapParams memory swapParams = SwapLogic.SwapParams({
             amount: amountIn,
             amountM: amountOutMinimum,
             single: single,
             recipient: address(this),
             path: path
         });
-        swap(swapParams, false);
+        SwapLogic.swap(swapParams, false, SWAP_ROUTER);
 
         return IERC20(Long).approve(address(POOL), amountOutMinimum);
     }
@@ -232,7 +225,7 @@ contract FlashLoan {
         console.log("withdrawAmount ", withdrawAmount);
         console.log("repayAmount: ", aaveRepayParams.repayAmount);
 
-        SwapParams memory swapParams = SwapParams({
+        SwapLogic.SwapParams memory swapParams = SwapLogic.SwapParams({
             amount: amount + premiums,
             amountM: aaveRepayParams.amountInMaximum,
             single: aaveRepayParams.single,
@@ -240,7 +233,7 @@ contract FlashLoan {
             path: aaveRepayParams.path
         });
 
-        uint256 amountIn = swap(swapParams, true);
+        uint256 amountIn = SwapLogic.swap(swapParams, true, SWAP_ROUTER);
         console.log("amountIn: ", amountIn);
 
         console.log("amountInMaximum: ", aaveRepayParams.amountInMaximum);
@@ -288,7 +281,7 @@ contract FlashLoan {
             compRepayParams.amountInMaximum
         );
 
-        SwapParams memory swapParams = SwapParams({
+        SwapLogic.SwapParams memory swapParams = SwapLogic.SwapParams({
             amount: compRepayParams.repayAmount,
             amountM: compRepayParams.amountInMaximum,
             single: compRepayParams.single,
@@ -296,7 +289,7 @@ contract FlashLoan {
             path: compRepayParams.path
         });
 
-        uint256 amountIn = swap(swapParams, true);
+        uint256 amountIn = SwapLogic.swap(swapParams, true, SWAP_ROUTER);
         console.log("amountIn: ", amountIn);
 
         _safeApprove(Short, address(POOL), compRepayParams.repayAmount);
@@ -362,7 +355,7 @@ contract FlashLoan {
         console.log("withdrawAmount ", withdrawAmount);
         console.log("repayAmount: ", aaveChangeParams.repayAmount);
 
-        SwapParams memory swapParams = SwapParams({
+        SwapLogic.SwapParams memory swapParams = SwapLogic.SwapParams({
             amount: aaveChangeParams.amountIn,
             amountM: aaveChangeParams.repayAmount,
             single: aaveChangeParams.single,
@@ -370,7 +363,7 @@ contract FlashLoan {
             path: aaveChangeParams.path
         });
 
-        uint256 amountOut = swap(swapParams, false);
+        uint256 amountOut = SwapLogic.swap(swapParams, false, SWAP_ROUTER);
 
         leverageAAVEPos(asset, amountOut - aaveChangeParams.repayAmount, initiator, 0);
 
@@ -409,7 +402,7 @@ contract FlashLoan {
             compChangeParams.amountIn
         );
 
-        SwapParams memory swapParams = SwapParams({
+        SwapLogic.SwapParams memory swapParams = SwapLogic.SwapParams({
             amount: compChangeParams.amountIn,
             amountM: compChangeParams.repayAmount,
             single: compChangeParams.single,
@@ -417,7 +410,7 @@ contract FlashLoan {
             path: compChangeParams.path
         });
 
-        uint256 amountOut = swap(swapParams, false);
+        uint256 amountOut = SwapLogic.swap(swapParams, false, SWAP_ROUTER);
         console.log("amountOut: ", amountOut);
 
         _safeApprove(asset, address(POOL), compChangeParams.repayAmount);
@@ -454,163 +447,7 @@ contract FlashLoan {
     //     return true;
     // }
 
-    function swap(
-        SwapParams memory swapParams,
-        bool exactOut
-    ) public returns (uint256 amount) {
-        if (exactOut) {
-            return swapExactOutputs(swapParams);
-        } else {
-            return swapExactInputs(swapParams);
-        }
-    }
-
-    function swapExactInputs(
-        SwapParams memory swapParams
-    ) internal returns (uint256 amountOut) {
-        if (swapParams.single) {
-            amountOut = swapExactInputSingle(
-                swapParams.path,
-                swapParams.recipient,
-                swapParams.amount,
-                swapParams.amountM
-            );
-        } else {
-            amountOut = swapExactInput(
-                swapParams.path,
-                swapParams.recipient,
-                swapParams.amount,
-                swapParams.amountM
-            );
-        }
-    }
-
-    function swapExactOutputs(
-        SwapParams memory swapParams
-    ) internal returns (uint256 amountIn) {
-        if (swapParams.single) {
-            amountIn = swapExactOutputSingle(
-                swapParams.path,
-                swapParams.recipient,
-                swapParams.amount,
-                swapParams.amountM
-            );
-        } else {
-            amountIn = swapExactOutput(
-                swapParams.path,
-                swapParams.recipient,
-                swapParams.amount,
-                swapParams.amountM
-            );
-        }
-    }
-
-    function swapExactInputSingle(
-        bytes memory path,
-        address recipient,
-        uint256 amountIn,
-        uint256 amountOutMinimum
-    ) internal returns (uint256 amountOut) {
-        (address tokenIn, address tokenOut, uint24 fee) = path
-            .decodeFirstPool();
-
-        console.log("tokenIn:", tokenIn);
-        console.log("tokenOut:", tokenOut);
-        _safeApprove(tokenIn, address(SWAP_ROUTER), amountIn);
-        // IERC20(tokenIn).transferFrom(msg.sender, address(this), amountIn);
-
-        ISwapRouter.ExactInputSingleParams memory params = ISwapRouter
-            .ExactInputSingleParams({
-                tokenIn: tokenIn,
-                tokenOut: tokenOut,
-                fee: fee,
-                recipient: recipient,
-                deadline: block.timestamp + 3000,
-                amountIn: amountIn,
-                amountOutMinimum: amountOutMinimum,
-                sqrtPriceLimitX96: 0
-            });
-
-        amountOut = SWAP_ROUTER.exactInputSingle(params);
-    }
-
-    function swapExactInput(
-        bytes memory path,
-        address recipient,
-        uint256 amountIn,
-        uint256 amountOutMinimum
-    ) internal returns (uint256 amountOut) {
-        (address tokenIn, , ) = path.decodeFirstPool();
-
-        _safeApprove(tokenIn, address(SWAP_ROUTER), amountIn);
-        // IERC20(tokenIn).transferFrom(msg.sender, address(this), amountIn);
-
-        ISwapRouter.ExactInputParams memory params = ISwapRouter
-            .ExactInputParams({
-                path: path,
-                recipient: recipient,
-                deadline: block.timestamp + 3000,
-                amountIn: amountIn,
-                amountOutMinimum: amountOutMinimum
-            });
-
-        amountOut = SWAP_ROUTER.exactInput(params);
-    }
-
-    function swapExactOutputSingle(
-        bytes memory path,
-        address recipient,
-        uint256 amountOut,
-        uint256 amountInMaximum
-    ) internal returns (uint256 amountIn) {
-        (address tokenOut, address tokenIn, uint24 fee) = path
-            .decodeFirstPool();
-
-        console.log("tokenIn:", tokenIn);
-        console.log("tokenOut:", tokenOut);
-        _safeApprove(tokenIn, address(SWAP_ROUTER), amountInMaximum);
-        uint256 balance = IERC20(tokenIn).balanceOf(address(this));
-        console.log("balance: ", balance);
-        // IERC20(tokenIn).transferFrom(msg.sender, address(this), amountIn);
-
-        ISwapRouter.ExactOutputSingleParams memory params = ISwapRouter
-            .ExactOutputSingleParams({
-                tokenIn: tokenIn,
-                tokenOut: tokenOut,
-                fee: fee,
-                recipient: recipient,
-                deadline: block.timestamp + 3000,
-                amountOut: amountOut,
-                amountInMaximum: amountInMaximum,
-                sqrtPriceLimitX96: 0
-            });
-
-        amountIn = SWAP_ROUTER.exactOutputSingle(params);
-    }
-
-    function swapExactOutput(
-        bytes memory path,
-        address recipient,
-        uint256 amountOut,
-        uint256 amountInMaximum
-    ) internal returns (uint256 amountIn) {
-        (, address tokenIn, ) = path.decodeFirstPool();
-
-        _safeApprove(tokenIn, address(SWAP_ROUTER), amountInMaximum);
-        // IERC20(tokenIn).transferFrom(msg.sender, address(this), amountIn);
-
-        ISwapRouter.ExactOutputParams memory params = ISwapRouter
-            .ExactOutputParams({
-                path: path,
-                recipient: recipient,
-                deadline: block.timestamp + 3000,
-                amountOut: amountOut,
-                amountInMaximum: amountInMaximum
-            });
-
-        amountIn = SWAP_ROUTER.exactOutput(params);
-    }
-
+   
     function leverageAAVEPos(
         address asset,
         uint256 amount,
