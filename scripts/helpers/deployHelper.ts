@@ -8,6 +8,21 @@ import {
 } from '../address';
 import { ethers } from 'ethers';
 
+
+/**
+ * Deploys all the contracts for flashLoan and returns the flashLoanProxy contract object.
+ * @param signer The signer required for deployment.
+ * @returns The flashLoanProxy contract object.
+ */
+export const deployAll = async (signer: SignerWithAddress) => {
+    const pathLib = await deployPathLibrary(signer);
+    const swapLogic = await deploySwapLogicLibrary(signer);
+    const flashLoan = await deployFlashLoan(signer, pathLib, swapLogic)
+    const flashLoanProxy = await deployFlashLoanProxy(signer, flashLoan.address);
+
+    return flashLoanProxy;
+}
+
 export const deployFlashLoanProxy = async (signer: SignerWithAddress, implementation: string) => {
     const flashLoanProxyFact = await hre.ethers.getContractFactory("FlashLoanProxy");
     const data = encodeInitData();
@@ -20,10 +35,11 @@ export const deployFlashLoanProxy = async (signer: SignerWithAddress, implementa
     return flashLoanProxy;
 }
 
-export const deployFlashLoan = async (signer: SignerWithAddress, pathLib: ethers.Contract) => {
+export const deployFlashLoan = async (signer: SignerWithAddress, pathLib: ethers.Contract, swapLogic: ethers.Contract) => {
     let flashLoanFact = await hre.ethers.getContractFactory("FlashLoan", {
         libraries: {
-            Path: pathLib.address
+            Path: pathLib.address,
+            swapLogic: swapLogic.address
         }
     });
     var flashLoan = await flashLoanFact.connect(signer).deploy();
@@ -42,6 +58,16 @@ export const deployPathLibrary = async (signer: SignerWithAddress) => {
         `Path library deployed to ${pathLibrary.address}`
     );
     return pathLibrary;
+}
+
+export const deploySwapLogicLibrary = async (signer: SignerWithAddress) => {
+    const swapLogicLibraryFact = await hre.ethers.getContractFactory("SwapLogic");
+    const swapLogicLibrary = await swapLogicLibraryFact.connect(signer).deploy();
+    await swapLogicLibrary.deployed();
+    console.log(
+        `Path library deployed to ${swapLogicLibrary.address}`
+    );
+    return swapLogicLibrary;
 }
 
 const encodeInitData = () => {
