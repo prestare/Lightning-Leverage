@@ -16,7 +16,7 @@ import { ethers } from 'ethers';
  */
 export const deployAll = async (signer: SignerWithAddress) => {
     const pathLib = await deployPathLibrary(signer);
-    const swapLogic = await deploySwapLogicLibrary(signer);
+    const swapLogic = await deploySwapLogicLibrary(signer, pathLib);
     const flashLoan = await deployFlashLoan(signer, pathLib, swapLogic)
     const flashLoanProxy = await deployFlashLoanProxy(signer, flashLoan.address);
 
@@ -39,7 +39,7 @@ export const deployFlashLoan = async (signer: SignerWithAddress, pathLib: ethers
     let flashLoanFact = await hre.ethers.getContractFactory("FlashLoan", {
         libraries: {
             Path: pathLib.address,
-            swapLogic: swapLogic.address
+            SwapLogic: swapLogic.address
         }
     });
     var flashLoan = await flashLoanFact.connect(signer).deploy();
@@ -60,8 +60,12 @@ export const deployPathLibrary = async (signer: SignerWithAddress) => {
     return pathLibrary;
 }
 
-export const deploySwapLogicLibrary = async (signer: SignerWithAddress) => {
-    const swapLogicLibraryFact = await hre.ethers.getContractFactory("SwapLogic");
+export const deploySwapLogicLibrary = async (signer: SignerWithAddress, pathLib: ethers.Contract) => {
+    const swapLogicLibraryFact = await hre.ethers.getContractFactory("SwapLogic", {
+        libraries: {
+            Path: pathLib.address
+        }
+    });
     const swapLogicLibrary = await swapLogicLibraryFact.connect(signer).deploy();
     await swapLogicLibrary.deployed();
     console.log(

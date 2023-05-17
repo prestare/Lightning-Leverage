@@ -21,16 +21,14 @@ import {
   getUserBorrowCapacityBase,
   COMET,
 } from './helpers/compHelper';
-import { deployFlashLoan, deployFlashLoanProxy, deployPathLibrary } from "./helpers/deployHelper";
+import { deployAll} from "./helpers/deployHelper";
 import { hre } from "./constant";
 
 async function main() {
 
   const [fakeSigner, other]: SignerWithAddress[] = await hre.ethers.getSigners();
 
-  const pathLib = await deployPathLibrary(fakeSigner);
-  const flashLoan = await deployFlashLoan(fakeSigner, pathLib);
-  const flashLoanProxy = await deployFlashLoanProxy(fakeSigner, flashLoan.address);
+  const flashLoanProxy = await deployAll(fakeSigner);
   console.log("Now user address: ", fakeSigner.address);
 
   await initAAVEContract(fakeSigner);

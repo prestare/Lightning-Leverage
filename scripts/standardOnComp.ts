@@ -7,7 +7,7 @@ import {
     USDCAddress,
 } from './address';
 import { hre } from "./constant";
-import { deployFlashLoan, deployFlashLoanProxy, deployPathLibrary } from "./helpers/deployHelper";
+import { deployAll} from "./helpers/deployHelper";
 import {
     calcUserAssetValue,
     calcNeedBorrowValue,
@@ -49,9 +49,7 @@ async function main() {
     await impersonateAccount(WALLET_ADDRESS);
     const fakeSigner: SignerWithAddress = await hre.ethers.getSigner(WALLET_ADDRESS);
     
-    const pathLib = await deployPathLibrary(fakeSigner);
-    const flashLoan = await deployFlashLoan(fakeSigner, pathLib);
-    const flashLoanProxy = await deployFlashLoanProxy(fakeSigner, flashLoan.address);
+    const flashLoanProxy = await deployAll(fakeSigner);
     // we init AAVE_POOL to calculate flash loan fee, 
     console.log("Now user address: ", fakeSigner.address);
 
