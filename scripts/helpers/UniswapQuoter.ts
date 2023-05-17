@@ -7,13 +7,27 @@ import { pack } from '@ethersproject/solidity'
 import { Pool, Route } from '@uniswap/v3-sdk';
 import { TradeType, CurrencyAmount, Currency, Percent, SupportedChainId, Token } from '@uniswap/sdk-core';
 import { WALLET_ADDRESS } from "../address";
-import { 
+import {
     router,
-    alphaRouterConfig
+    alphaRouterConfig,
+    WETH_TOKEN
 } from "../constant";
 import JSBI from 'jsbi';
+import { WBTC_TOKEN } from '../constant';
+import { USDC_TOKEN } from '../constant';
+import { DAI_TOKEN } from '../constant';
 
-var tokenMap = new Map();
+let tokenMap = new Map();
+
+
+let keys = ["WETH", "WBTC", "USDC", "DAI"];
+let tokens = [WETH_TOKEN, WBTC_TOKEN, USDC_TOKEN, DAI_TOKEN]
+
+for (let i = 0; i < keys.length && i < tokens.length; i++) {
+    registryToken(keys[i], tokens[i])
+}
+
+
 
 export function registryToken(key: string, token: Token) {
     tokenMap.set(key, token);
@@ -84,12 +98,80 @@ export async function swapRouteExactOutPut(inToken: string, amountOut: string, o
     )
 }
 
+export const quoterUniswap = async (fromToken:string, toToken:string, amount:string, slippage: number, exactOut: boolean, encodePathExactOut: boolean) => {
+    console.log("");
+    console.log("Quoter Asset Swap");
+    const slippageTolerance = new Percent(slippage, 10_000);
+    let route;
+    
+    if (exactOut) {
+        route = await swapRouteExactOutPut(
+            fromToken,
+            toToken,
+            amount,
+            slippageTolerance
+        )
+    } else {
+        route = await swapRoute(
+            fromToken,
+            amount,
+            toToken,
+            slippageTolerance
+          );
+    }
+    
+    console.log(route);
+    console.log("slippage Torlerance: %s",slippageTolerance.toFixed())
+    const toTokenObj = getToken(toToken);
+
+    return processRoute(route!, slippageTolerance, toTokenObj, exactOut, encodePathExactOut);
+}
+
+export const processRoute = (route: SwapRoute, slippageTolerance: Percent, toToken: Token, exactOut: boolean, encodePathExactOut: boolean) => {
+    if (route == null || route.methodParameters == undefined) throw 'No route loaded';
+
+    let mValue; // minimumAmount or maximumAmount, according to `exactOut`
+    const { route: routePath} = route.trade.swaps[0];
+    const path = encodeRouteToPath(routePath, encodePathExactOut);
+
+    if (exactOut) {
+        const {inputAmount} = route.trade.swaps[0];
+        mValue = route.trade.maximumAmountIn(slippageTolerance, inputAmount);
+        console.log(`   maximum Input Amount: ${mValue}`);
+    } else {
+        const {outputAmount} = route.trade.swaps[0];
+        mValue = route.trade.minimumAmountOut(slippageTolerance, outputAmount);
+        console.log(`   minimum Output Amount: ${mValue}`);
+    }
+
+    console.log(`   route path: ${path}`);
+    console.log(`   You'll get ${route.quote.toFixed(toToken.decimals)} of ${toToken.symbol}`);
+    // output quote minus gas fees
+    console.log(`   Gas Adjusted Quote: ${route.quoteGasAdjusted.toFixed()}`);
+    console.log(`   Gas Used Quote Token: ${route.estimatedGasUsedQuoteToken.toFixed()}`);
+    console.log(`   Gas Used USD: ${route.estimatedGasUsedUSD.toFixed()}`);
+    console.log(`   Gas Used: ${route.estimatedGasUsed.toString()}`);
+    console.log(`   Gas Price Wei: ${route.gasPriceWei}`);
+
+    const paths = route.route[0].tokenPath.map(value => value.symbol);
+
+    console.log(`   route paths: ${paths}`);
+    console.log(`   trade: ${route.trade}`);
+    // const single = route.methodParameters.calldata.includes('5ae401dc');
+    const single = paths.length == 2;
+    return {
+        mValue,
+        single,
+        path
+    }
+}
+
 /**
  * Converts a route to a hex encoded path
  * @param route the v3 path to convert to an encoded path
  * @param exactOutput whether the route should be encoded in reverse, for making exact output swaps
  */
- export function encodeRouteToPath(route: Route<Currency, Currency>, exactOutput: boolean): string {
+export function encodeRouteToPath(route: Route<Currency, Currency>, exactOutput: boolean): string {
     const firstInputToken: Token = route.input.wrapped
 
     const { path, types } = route.pools.reduce(
@@ -140,7 +222,7 @@ export function fromReadableAmount(amount: number, decimals: number): JSBI {
  * Counts decimals of a number
  * @param x the number to count decimals
  */
- function countDecimals(x: number) {
+function countDecimals(x: number) {
     if (Math.floor(x) === x) {
         return 0
     }
