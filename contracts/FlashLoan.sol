@@ -20,6 +20,19 @@ import "hardhat/console.sol";
 contract FlashLoan {
     using Path for bytes;
 
+    struct AaveOperationParams {
+        bool single;
+        uint256 amountOutMinimum;
+        bytes path;
+    }
+
+    struct CompOperationParams {
+        bool single;
+        uint256 amountIn;
+        uint256 amountOutMinimum;
+        bytes path;
+    }
+
     struct ApprovePermitParams {
         uint256 deadline;
         uint8 v;
@@ -113,17 +126,20 @@ contract FlashLoan {
         console.log("COMET: ", address(COMET));
 
         // params: single+amountOutMinimum+path, bool+uint256+bytes
-        bool single = params.toBool(0);
-        uint256 amountOutMinimum = params.toUint256(1);
-        bytes calldata path = params[33:params.length - 4]; // remove selector
-        (, address Long, ) = path.decodeLastPool();
+        AaveOperationParams memory aaveOperationParams = AaveOperationParams({
+            single: params.toBool(0),
+            amountOutMinimum: params.toUint256(1),
+            path: params[33:params.length-4] // remove selector
+        });
+     
+        (, address Long, ) = aaveOperationParams.path.decodeLastPool();
 
         SwapLogic.SwapParams memory swapParams = SwapLogic.SwapParams({
             amount: amounts[0],
-            amountM: amountOutMinimum,
-            single: single,
+            amountM: aaveOperationParams.amountOutMinimum,
+            single: aaveOperationParams.single,
             recipient: address(this),
-            path: path
+            path: aaveOperationParams.path
         });
 
         uint256 amountOut = SwapLogic.swap(swapParams, false, SWAP_ROUTER);
@@ -140,27 +156,32 @@ contract FlashLoan {
         bytes calldata params
     ) external returns (bool) {
         // params: single+amountIn+path, bool+uint256+bytes+bytes4
-        bool single = params.toBool(0);
-        uint256 amountIn = params.toUint256(1);
-        uint256 amountOutMinimum = amount + premiums;
-        bytes calldata path = params[33:params.length - 4]; // remove selector
+        CompOperationParams memory compOperationParams = CompOperationParams({
+            single: params.toBool(0),
+            amountIn: params.toUint256(1),
+            amountOutMinimum: amount + premiums,
+            path: params[33:params.length - 4] // remove selector
+        });
 
         IERC20(Long).approve(address(COMET), amount);
         COMET.supplyTo(initiator, Long, amount);
         COMET.collateralBalanceOf(initiator, Long);
-        COMET.withdrawFrom(initiator, address(this), USDC, amountIn);
+        COMET.withdrawFrom(initiator, address(this), USDC, compOperationParams.amountIn);
         IERC20(USDC).balanceOf(address(this));
 
         SwapLogic.SwapParams memory swapParams = SwapLogic.SwapParams({
-            amount: amountIn,
-            amountM: amountOutMinimum,
-            single: single,
+            amount: compOperationParams.amountIn,
+            amountM: compOperationParams.amountOutMinimum,
+            single: compOperationParams.single,
             recipient: address(this),
-            path: path
+            path: compOperationParams.path
         });
-        SwapLogic.swap(swapParams, false, SWAP_ROUTER);
+        uint256 amountOut = SwapLogic.swap(swapParams, false, SWAP_ROUTER);
 
-        return IERC20(Long).approve(address(POOL), amountOutMinimum);
+        IERC20(Long).approve(address(COMET), amountOut - compOperationParams.amountOutMinimum);
+        COMET.supplyTo(initiator, Long, amountOut - compOperationParams.amountOutMinimum);
+
+        return IERC20(Long).approve(address(POOL), compOperationParams.amountOutMinimum);
     }
 
     // selector: 0xd8ad4ac2
