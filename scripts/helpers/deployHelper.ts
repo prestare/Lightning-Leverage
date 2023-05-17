@@ -65,7 +65,7 @@ export const deploySwapLogicLibrary = async (signer: SignerWithAddress) => {
     const swapLogicLibrary = await swapLogicLibraryFact.connect(signer).deploy();
     await swapLogicLibrary.deployed();
     console.log(
-        `Path library deployed to ${swapLogicLibrary.address}`
+        `SwapLogic library deployed to ${swapLogicLibrary.address}`
     );
     return swapLogicLibrary;
 }
