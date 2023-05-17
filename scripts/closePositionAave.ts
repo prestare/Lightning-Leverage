@@ -22,14 +22,7 @@ import {
 import { deployAll} from "./helpers/deployHelper";
 import { hre } from "./constant";
 import {
-  WETH_TOKEN,
-  DAI_TOKEN,
-} from "./constant";
-import {
-  registryToken,
-  swapRoute,
-  swapRouteExactOutPut,
-  encodeRouteToPath
+  quoterUniswap
 } from "./helpers/UniswapQuoter";
 
 async function main() {
@@ -93,45 +86,12 @@ async function main() {
   let repayAmount = flashloanAmount.add(flashLoanFee);
   console.log("   After SWAP, need %s DAI to repay the flash loan", repayAmount.toString());
 
-  console.log("");
-  // console.log("Quoter Asset Swap");
-  // console.log("   Registry Token...");
-  // registryToken('WETH', WETH_TOKEN);
-  // registryToken('DAI', DAI_TOKEN);
-  // const route = await swapRouteExactOutPut(
-  //   'WETH',
-  //   repayAmount.toString(),
-  //   'DAI',
-  //   slippageTolerance
-  // );
-
-  // if (route == null || route.methodParameters == undefined) throw 'No route loaded';
-
-  // const { route: routePath, inputAmount } = route.trade.swaps[0];
-  // const maximumAmount = route.trade.maximumAmountIn(slippageTolerance, inputAmount).quotient;
-
-  // const path = encodeRouteToPath(routePath, true);
-  // console.log(`   maximum Input Amount: ${maximumAmount}`);
-  // console.log(`   route path: ${path}`);
-
-  // console.log(`   You'll pay ${route.quote.toFixed()} of ${DAI_TOKEN.symbol}`);
-  // // output quote minus gas fees
-  // console.log(`   Gas Adjusted Quote: ${route.quoteGasAdjusted.toFixed()}`);
-  // console.log(`   Gas Used Quote Token: ${route.estimatedGasUsedQuoteToken.toFixed()}`);
-  // console.log(`   Gas Used USD: ${route.estimatedGasUsedUSD.toFixed()}`);
-  // console.log(`   Gas Used: ${route.estimatedGasUsed.toString()}`);
-  // console.log(`   Gas Price Wei: ${route.gasPriceWei}`);
-
-  // const paths = route.route[0].tokenPath.map(value => value.symbol);
-  // console.log(`   route paths: ${paths}`);
-  // console.log(`   trade: ${route.trade}`);
-
-  // const single = paths.length == 2;
-  // const amountIn = maximumAmount.toString();
-
-  const single = true;
-  const path = "0x6b175474e89094c44da98b954eedeac495271d0f0001f4c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
-  const amountIn = "1003389458389176670"
+  const {mValue, single, path} = await quoterUniswap('WETH', 'DAI', repayAmount.toString(), slippage, true, true);
+  const maximumAmount = mValue;
+  const amountIn = maximumAmount;
+  // const single = true;
+  // const path = "0x6b175474e89094c44da98b954eedeac495271d0f0001f4c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+  // const amountIn = "1003389458389176670"
 
   const asset: string = DaiAddress;
   const amount: ethers.BigNumber = flashloanAmount;

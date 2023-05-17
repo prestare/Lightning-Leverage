@@ -10,12 +10,12 @@ import { WALLET_ADDRESS } from "../address";
 import {
     router,
     alphaRouterConfig,
-    WETH_TOKEN
+    WETH_TOKEN,
+    WBTC_TOKEN,
+    USDC_TOKEN,
+    DAI_TOKEN
 } from "../constant";
 import JSBI from 'jsbi';
-import { WBTC_TOKEN } from '../constant';
-import { USDC_TOKEN } from '../constant';
-import { DAI_TOKEN } from '../constant';
 
 let tokenMap = new Map();
 
@@ -46,6 +46,7 @@ export function getToken(key: string): Token {
  */
 export async function swapRoute(inToken: string, amountIn: string, outToken: string, slippageTolerance: Percent): Promise<SwapRoute | null> {
     const IN_TOKEN = getToken(inToken);
+
     // console.log(IN_TOKEN);
     const OUT_TOKEN = getToken(outToken);
     // console.log(OUT_TOKEN);
@@ -107,8 +108,8 @@ export const quoterUniswap = async (fromToken:string, toToken:string, amount:str
     if (exactOut) {
         route = await swapRouteExactOutPut(
             fromToken,
-            toToken,
             amount,
+            toToken,
             slippageTolerance
         )
     } else {
@@ -120,7 +121,6 @@ export const quoterUniswap = async (fromToken:string, toToken:string, amount:str
           );
     }
     
-    console.log(route);
     console.log("slippage Torlerance: %s",slippageTolerance.toFixed())
     const toTokenObj = getToken(toToken);
 
@@ -136,16 +136,17 @@ export const processRoute = (route: SwapRoute, slippageTolerance: Percent, toTok
 
     if (exactOut) {
         const {inputAmount} = route.trade.swaps[0];
-        mValue = route.trade.maximumAmountIn(slippageTolerance, inputAmount);
+        mValue = route.trade.maximumAmountIn(slippageTolerance, inputAmount).quotient.toString();
+        console.log(`   You'll pay: ${inputAmount.toFixed()} of ${toToken.symbol}`);
         console.log(`   maximum Input Amount: ${mValue}`);
     } else {
         const {outputAmount} = route.trade.swaps[0];
-        mValue = route.trade.minimumAmountOut(slippageTolerance, outputAmount);
+        mValue = route.trade.minimumAmountOut(slippageTolerance, outputAmount).quotient.toString();
+        console.log(`   You'll get ${outputAmount.toFixed()} of ${toToken.symbol}`);
         console.log(`   minimum Output Amount: ${mValue}`);
     }
 
     console.log(`   route path: ${path}`);
-    console.log(`   You'll get ${route.quote.toFixed(toToken.decimals)} of ${toToken.symbol}`);
     // output quote minus gas fees
     console.log(`   Gas Adjusted Quote: ${route.quoteGasAdjusted.toFixed()}`);
     console.log(`   Gas Used Quote Token: ${route.estimatedGasUsedQuoteToken.toFixed()}`);
@@ -157,7 +158,6 @@ export const processRoute = (route: SwapRoute, slippageTolerance: Percent, toTok
 
     console.log(`   route paths: ${paths}`);
     console.log(`   trade: ${route.trade}`);
-    // const single = route.methodParameters.calldata.includes('5ae401dc');
     const single = paths.length == 2;
     return {
         mValue,

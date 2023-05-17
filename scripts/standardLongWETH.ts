@@ -32,13 +32,7 @@ import {
 import {deployAll} from "./helpers/deployHelper";
 import {hre} from "./constant";
 import {
-  WETH_TOKEN,
-  DAI_TOKEN,
-} from "./constant";
-import {
-  registryToken, 
-  swapRoute, 
-  encodeRouteToPath
+  quoterUniswap
 } from "./helpers/UniswapQuoter";
 
 async function main() {
@@ -118,48 +112,12 @@ async function main() {
     let amountOutLeast = getAmountOutleast(needSwapETH, slippage);
     console.log("   So after swap, the output should be at least = ", num2Fixed(amountOutLeast, 18));
 
-    console.log("");
-    console.log("Quoter Asset Swap");
-    console.log("   Registry Token...");
-    // registryToken('WETH', WETH_TOKEN);
-    // registryToken('DAI', DAI_TOKEN);
+    const {mValue, single, path} = await quoterUniswap('DAI', 'WETH', flashloanAmount.toString(), slippage, false, false);
+    const minimumAmount = mValue;
+    // const minimumAmount = "5269674485762893556";
+    // const path = "0x6b175474e89094c44da98b954eedeac495271d0f0001f4c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2";
+    // const single = true;
 
-    // const route = await swapRoute(
-    //   'DAI',
-    //   flashloanAmount.toString(),
-    //   'WETH',
-    //   slippageTolerance
-    // );
-
-    // if (route == null || route.methodParameters == undefined) throw 'No route loaded';
-    
-    // console.log(...route.trade.swaps);
-    // const { route: routePath, outputAmount } = route.trade.swaps[0];
-    // const minimumAmount = route.trade.minimumAmountOut(slippageTolerance, outputAmount).quotient;
-    const minimumAmount = 5269674485762893556;
-    // const path = encodeRouteToPath(routePath, false);
-    const path = "0x6b175474e89094c44da98b954eedeac495271d0f0001f4c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2";
-    // console.log(`   minimum Output Amount: ${minimumAmount}`);
-    // console.log(`   route path: ${path}`);
-
-    // console.log(`   You'll get ${route.quote.toFixed(WETH_TOKEN.decimals)} of ${WETH_TOKEN.symbol}`);
-    // // output quote minus gas fees
-    // console.log(`   Gas Adjusted Quote: ${route.quoteGasAdjusted.toFixed()}`);
-    // console.log(`   Gas Used Quote Token: ${route.estimatedGasUsedQuoteToken.toFixed()}`);
-    // console.log(`   Gas Used USD: ${route.estimatedGasUsedUSD.toFixed()}`);
-    // console.log(`   Gas Used: ${route.estimatedGasUsed.toString()}`);
-    // console.log(`   Gas Price Wei: ${route.gasPriceWei}`);
-
-    // const paths = route.route[0].tokenPath.map(value => value.symbol);
-
-    // console.log(`   route paths: ${paths}`);
-    // console.log(`   trade: ${route.trade}`);
-    const single = true;
-    // const single = paths.length == 2;
-    // console.log("single: ", single);
-    // console.log(route.methodParameters.calldata);
-
-    console.log("");
     // apporve flashloan to increase debt on fakesigner
     const debtTokenAddress = await getAssetDebtTokenAddress(DaiAddress);
     const debtToken = debtTokenContract(debtTokenAddress, fakeSigner);
@@ -170,16 +128,9 @@ async function main() {
     const assets : string[] = [DaiAddress,];
     const amounts : ethers.BigNumber[] = [flashloanAmount, ]; 
     const interestRateModes : ethers.BigNumber[] = [BigNumber.from("2"), ];
-    // this params is used to meet the condition in executeOperation
-    // params: 1. address is long asset address 2. Slippage 500 ~ 0.05% 3000 ~ 0.3% 10000 ~ 1%
-    // const poolFee = 3000;
-
-    // const params = ethers.utils.formatBytes32String("hello");
-
-    // const single = true;
 
     // params: single+amountOutMinimum+path, bool+uint256+bytes
-    const params = ethers.utils.solidityPack(["bool", "uint256", "bytes", "bytes4"], [single, minimumAmount.toString(), path, "0x80ddec56"]);
+    const params = ethers.utils.solidityPack(["bool", "uint256", "bytes", "bytes4"], [single, minimumAmount, path, "0x80ddec56"]);
 
     console.log("");
     console.log("Transaction Begin...");

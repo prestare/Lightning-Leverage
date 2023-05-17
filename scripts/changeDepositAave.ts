@@ -21,13 +21,7 @@ import {
 import { deployAll} from "./helpers/deployHelper";
 import { hre } from "./constant";
 import {
-  WETH_TOKEN,
-  DAI_TOKEN,
-} from "./constant";
-import {
-  registryToken,
-  swapRoute,
-  encodeRouteToPath
+  quoterUniswap
 } from "./helpers/UniswapQuoter";
 
 /*
@@ -76,43 +70,8 @@ async function main() {
   const slippageTolerance = new Percent(slippage, 10_000);
   console.log("   User's slippage = %d%", slippageTolerance.toFixed());
 
-  console.log("");
-  console.log("Quoter Asset Swap");
-  console.log("   Registry Token...");
-  registryToken('WETH', WETH_TOKEN);
-  registryToken('DAI', DAI_TOKEN);
-  const route = await swapRoute(
-    'WETH',
-    aTokenBalance,
-    'DAI',
-    slippageTolerance
-  );
-
-  if (route == null || route.methodParameters == undefined) throw 'No route loaded';
-
-  const { route: routePath, outputAmount } = route.trade.swaps[0];
-  console.log("amountOut: ", outputAmount.quotient.toString());
-  const minimumOutputAmountString = route.trade.minimumAmountOut(slippageTolerance, outputAmount).quotient.toString();
-  const minimumOutputAmount = BigNumber.from(minimumOutputAmountString);
-
-  const path = encodeRouteToPath(routePath, false);
-  console.log(`   minimum Output Amount: ${minimumOutputAmount}`);
-  console.log(`   route path: ${path}`);
-
-  console.log(`   You'll pay ${route.quote.toFixed()} of USDC`);
-  // output quote minus gas fees
-  console.log(`   Gas Adjusted Quote: ${route.quoteGasAdjusted.toFixed()}`);
-  console.log(`   Gas Used Quote Token: ${route.estimatedGasUsedQuoteToken.toFixed()}`);
-  console.log(`   Gas Used USD: ${route.estimatedGasUsedUSD.toFixed()}`);
-  console.log(`   Gas Used: ${route.estimatedGasUsed.toString()}`);
-  console.log(`   Gas Price Wei: ${route.gasPriceWei}`);
-
-  const paths = route.route[0].tokenPath.map(value => value.symbol);
-  console.log(`   route paths: ${paths}`);
-  console.log(`   trade: ${route.trade}`);
-
-  const single = paths.length == 2;
-
+  const {mValue, single, path} = await quoterUniswap('WETH', 'DAI', aTokenBalance, slippage, false, false);
+  const minimumOutputAmount = BigNumber.from(mValue);
   // const single = true;
   // const path = "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc20001f46b175474e89094c44da98b954eedeac495271d0f";
   // const minimumOutputAmount = BigNumber.from("3667518140694153770716");

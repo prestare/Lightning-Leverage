@@ -33,14 +33,7 @@ import {
     getAssetPriceOnAAVE
 } from "./helpers/aaveHelper";
 import {
-    WETH_TOKEN,
-    USDC_TOKEN,
-} from "./constant";
-import {
-    registryToken,
-    swapRoute,
-    swapRouteExactOutPut,
-    encodeRouteToPath
+    quoterUniswap
 } from "./helpers/UniswapQuoter";
 import { Percent } from '@uniswap/sdk-core';
 import { COMET } from "./helpers/compHelper";
@@ -123,54 +116,16 @@ async function main() {
     let amountInMax = getAmountInleast(needBorrowAmount, slippage);
     console.log("       According to the slippage, the max input should be = %d", num2Fixed(amountInMax, 6));
 
-    console.log("");
-    console.log("Quoter Asset Swap");
-    console.log("   Registry Token...");
-    // const params = ethers.utils.formatBytes32String("hello");
-    registryToken('WETH', WETH_TOKEN);
-    registryToken('USDC', USDC_TOKEN);
-    const route = await swapRouteExactOutPut(
-        'USDC',
-        repayAmount.toString(),
-        'WETH',
-        slippageTolerance
-    );
 
-    if (route == null || route.methodParameters == undefined) throw 'No route loaded';
-
-    // console.log(...route.trade.swaps);
-    const { route: routePath, inputAmount } = route.trade.swaps[0];
-    const maximumAmount = route.trade.maximumAmountIn(slippageTolerance, inputAmount).quotient;
-    // const minimumAmount = 0;
-    const path = encodeRouteToPath(routePath, false);
-    // const path = ethers.utils.solidityPack(["address", "uint24", "address"], [USDCAddress, 3000, WETHAddress]);
-
-    console.log(`   maximum Input Amount: ${maximumAmount}`);
-    console.log(`   route path: ${path}`);
-
-    console.log(`   You'll pay ${route.quote.toFixed()} of ${USDC_TOKEN.symbol}`);
-    // output quote minus gas fees
-    console.log(`   Gas Adjusted Quote: ${route.quoteGasAdjusted.toFixed()}`);
-    console.log(`   Gas Used Quote Token: ${route.estimatedGasUsedQuoteToken.toFixed()}`);
-    console.log(`   Gas Used USD: ${route.estimatedGasUsedUSD.toFixed()}`);
-    console.log(`   Gas Used: ${route.estimatedGasUsed.toString()}`);
-    console.log(`   Gas Price Wei: ${route.gasPriceWei}`);
-
-    const paths = route.route[0].tokenPath.map(value => value.symbol);
-
-    console.log(`   route paths: ${paths}`);
-    console.log(`   trade: ${route.trade}`);
-    const single = paths.length == 2;
+    const {mValue, single, path} = await quoterUniswap('USDC', 'WETH', repayAmount.toString(), slippage, true, false);
+    const maximumAmount = mValue;
     // const single = true;
-    // const amountIn = 11073514753;
-    //const path = 0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb480001f4c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2
+    // const amountIn = '11073514753';
+    // const path = 0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb480001f4c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2
 
     const asset: string = WETHAddress;
     const amount: ethers.BigNumber = flashloanAmount;
-    // this params is used to meet the condition in executeOperation
-    // params: 1. address is long asset address 2. Slippage 500 ~ 0.05% 3000 ~ 0.3% 10000 ~ 1%
-    // const poolFee = 3000;
-    let amountIn = amountInMax.toString();
+    let amountIn = maximumAmount;
     console.log(amountIn);
     
     // params: single+amountInMaximum+path+selector, bool+uint256+bytes+bytes4
