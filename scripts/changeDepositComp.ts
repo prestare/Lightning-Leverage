@@ -11,7 +11,7 @@ import {
   num2Fixed,
   calcFlashLoanAmountByRepayAmount
 } from "./helpers/aaveHelper";
-import { deployFlashLoan, deployFlashLoanProxy, deployPathLibrary } from "./helpers/deployHelper";
+import { deployAll} from "./helpers/deployHelper";
 import { hre, WETH_TOKEN, WBTC_TOKEN } from "./constant";
 import {
   registryToken,
@@ -30,9 +30,7 @@ async function main() {
   const [fakeSigner, other]: SignerWithAddress[] = await hre.ethers.getSigners();
 
   // deploy contracts
-  const pathLib = await deployPathLibrary(fakeSigner);
-  const flashLoan = await deployFlashLoan(fakeSigner, pathLib);
-  const flashLoanProxy = await deployFlashLoanProxy(fakeSigner, flashLoan.address);
+  const flashLoanProxy = await deployAll(fakeSigner);
   console.log("Now user address: ", fakeSigner.address);
 
   // init  contracts
@@ -89,7 +87,7 @@ async function main() {
   const paths = route.route[0].tokenPath.map(value => value.symbol);
   console.log(`   route paths: ${paths}`);
   console.log(`   trade: ${route.trade}`);
-  
+
   const single = paths.length == 2;
 
   // const single = true;
