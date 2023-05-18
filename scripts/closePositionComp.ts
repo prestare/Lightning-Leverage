@@ -20,6 +20,7 @@ import {
   allowFlashLoanContract,
   getUserBorrowCapacityBase,
   COMET,
+  depositToComp,
 } from './helpers/compHelper';
 import { deployAll} from "./helpers/deployHelper";
 import { hre } from "./constant";
@@ -40,7 +41,7 @@ async function main() {
   console.log("");
   console.log("First, user have to deposit some token into the comp Pool");
   const depositAmount = ethers.utils.parseUnits("2", "ether");
-  await supplyWETH(fakeSigner, depositAmount);
+  await depositToComp(fakeSigner, fakeSigner.address, WETHAddress, depositAmount, true);
 
   const userCollateralBalance = await getUserCollateralBalance(fakeSigner.address, WETHAddress);
   let userBorrowCapacityBalance = await getUserBorrowCapacityBase(fakeSigner.address);

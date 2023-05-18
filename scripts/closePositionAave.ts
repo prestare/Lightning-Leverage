@@ -17,7 +17,8 @@ import {
   showUserAccountData,
   num2Fixed,
   getUserDebtTokenBalance,
-  getApprovePermit
+  getApprovePermit,
+  depositToAave
 } from "./helpers/aaveHelper";
 import { deployAll} from "./helpers/deployHelper";
 import { hre } from "./constant";
@@ -39,18 +40,7 @@ async function main() {
   console.log("First, user have to deposit some token into the AAVE Pool");
 
   const depositAmount = ethers.utils.parseUnits("2", "ether");
-  // deposit eth in aave by WETHGateWay function
-  console.log("Now, User deposit %d %s token in to AAVE", num2Fixed(depositAmount, 18), "ETH");
-  const tx1 = await WETH_GATEWAY.connect(fakeSigner).depositETH(fakeSigner.address, fakeSigner.address, 0, { value: depositAmount });
-  console.log("After Deposit...");
-  // check if we actually have one aWETH
-  const aTokenBalance = await getUserATokenBalance(aWETH, fakeSigner.address);
-  console.log("   user a%sBalance is ", "ETH", num2Fixed(aTokenBalance, 18));
-
-  // check user account data
-  let accountData = await AAVE_POOL.getUserAccountData(fakeSigner.address);
-  showUserAccountData(accountData);
-  // console.log(accountData);
+  await depositToAave(fakeSigner, fakeSigner.address, WETHAddress, depositAmount, true);
 
   // console.log(AavePrices);
   // Price 小数位为8
@@ -67,7 +57,7 @@ async function main() {
   await AAVE_POOL.borrow(DaiAddress, borrowAmount, 2, 0, fakeSigner.address); // 2 represents variable interest rate
 
   // account data after borrowing
-  accountData = await AAVE_POOL.getUserAccountData(fakeSigner.address);
+  let accountData = await AAVE_POOL.getUserAccountData(fakeSigner.address);
   showUserAccountData(accountData);
 
   const debtTokenBalance = await getUserDebtTokenBalance(DaiAddress, fakeSigner.address, 2);

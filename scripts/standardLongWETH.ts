@@ -1,33 +1,22 @@
 import { BigNumber, ethers } from 'ethers';
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { impersonateAccount } from "@nomicfoundation/hardhat-network-helpers";
-import {Percent} from '@uniswap/sdk-core';
 
-import { DaiAddress, WETHAddress, aWETHAddress, WALLET_ADDRESS} from './address';
-import { 
-  calcUserAssetValue,
-  calcLeveragePosition,
-  calcNeedBorrowValue,
-  calcNeedBorrowAmount,
-  adoptTokenDicimals,
-  getAmountOutleast
-} from './helpers/leverage';
+import { DaiAddress, WETHAddress, WALLET_ADDRESS} from './address';
 import {
     initAavePriceOracle,
-    getAssetPriceOnAAVE,
-    getUserATokenBalance,
     initAAVEContract, 
-    AAVE_POOL, WETH_GATEWAY, 
-    aTokenContract, 
+    AAVE_POOL,
     debtTokenContract, 
     getAssetDebtTokenAddress, 
     apporve2Borrow, 
     checkBorrowAllowance,
-    getMaxLeverageOnAAVE,
     showUserAccountData,
     num2Fixed,
     getTotalCollateralBase,
-    getTotalDebtBase
+    depositToAave,
+    calcUserAaveMaxLeverage,
+    calcUserLeverFlashLoanAave
 } from "./helpers/aaveHelper";
 import {deployAll} from "./helpers/deployHelper";
 import {hre} from "./constant";
@@ -45,74 +34,26 @@ async function main() {
     console.log("Now user address: ", fakeSigner.address);
   
     await initAAVEContract(fakeSigner);
-    // DEPOSIT 1 ETH IN AAVE
-    const aWETH = aTokenContract(aWETHAddress, fakeSigner);
 
-    const balance = await aWETH.balanceOf(fakeSigner.address);
-    console.log("Before any tx, the Wallet AToken Address is balance: ", balance.toString());
-    
-    console.log("");
-    console.log("First, user have to deposit some token into the AAVE Pool");
-
+    // deposit 2 ETH to aave
     const depositAmount = ethers.utils.parseUnits("2", "ether");
-    // deposit eth in aave by WETHGateWay function
-    console.log("Now, User deposit %d %s token in to AAVE",num2Fixed(depositAmount,18), "ETH");
-    const tx1 =  await WETH_GATEWAY.connect(fakeSigner).depositETH(fakeSigner.address,fakeSigner.address, 0, {value: depositAmount});
-    console.log("After Deposit...");
-    // check if we actually have one aWETH
-    const aTokenBalance = await getUserATokenBalance(aWETH, fakeSigner.address);
-    console.log("   user a%sBalance is ", "ETH", num2Fixed(aTokenBalance, 18));
+    await depositToAave(fakeSigner, fakeSigner.address, WETHAddress, depositAmount, true);
 
     // check user account data
     let accountData = await AAVE_POOL.getUserAccountData(fakeSigner.address);
     showUserAccountData(accountData);
-    // console.log(accountData);
     
     // console.log(AavePrices);
     // Price 小数位为8
     await initAavePriceOracle(fakeSigner);
-    console.log("");
-    console.log("Now calculate user max leverage...");
-    console.log("   User deposit Asset is WETH:");
-    let WETHPrice = await getAssetPriceOnAAVE(WETHAddress);
-    let userBalance = await getUserATokenBalance(aWETH, fakeSigner.address);
-    const WETHValue = await calcUserAssetValue(userBalance, WETHPrice, 18);
-
-    let maxleverage = await getMaxLeverageOnAAVE(WETHAddress, AAVE_POOL, "WETH");
-    // WETH Value * MAX Leverage = MAX Borrow Cap 
-    let maxBorrowCap = WETHValue.mul(maxleverage);
+    const {assetValue, maxBorrowCap} = await calcUserAaveMaxLeverage(fakeSigner, fakeSigner.address, WETHAddress);
     console.log("       The MAX amount of position (in USD)  = $%d", ethers.utils.formatUnits(maxBorrowCap, 8).toString());
-    
-    // FLASH LOAN $2000 DAI and short DAI
-    let DAIPrice = await getAssetPriceOnAAVE(DaiAddress);
-    let DAISymbol = "DAI";
-    console.log("   User choose to short %s Asset.", DAISymbol);
-    console.log("   %s Price = $%d", DAISymbol, num2Fixed(DAIPrice, 8));
-    let DAIdecimal = 18;
-    // user leverage is the leverage be choosed
+
     let userleverage = 4;
-    console.log("   Current leverage = ", userleverage);
-    let newPosition = calcLeveragePosition(WETHValue, userleverage);
-    console.log("       user want to leverage up their position to $%d", newPosition.toString());
-    let needBorrowAmountUSD = calcNeedBorrowValue(WETHValue, userleverage);
-    console.log("       so user need to flash loan (in USDC) = $%d", ethers.utils.formatUnits(needBorrowAmountUSD, 8).toString());
-    let needBorrowAmount = calcNeedBorrowAmount(needBorrowAmountUSD, DAIPrice);
-    console.log("       so user need to borrow DAI Amount = %d", ethers.utils.formatUnits(needBorrowAmount, 8).toString());
-    let flashloanAmount = adoptTokenDicimals(needBorrowAmount, 8, DAIdecimal);
-    console.log("       so flash loan Amount = %d", flashloanAmount.toString());
-
-    console.log("");
-    // 20bps = 0.2%, when i test, i found the uniswap slip is about 0.1%. WETH-DAI have a lot liquidity, so the slip is small. 
-    // But we need to test whether other token-pair swap can have the same slip level.
+    const {flashLoanAmount} = await calcUserLeverFlashLoanAave(fakeSigner, fakeSigner.address, userleverage, WETHAddress, WETHAddress, DaiAddress);
+    
     let slippage = 20;
-    const slippageTolerance = new Percent(slippage, 10_000);
-    console.log("User's slippage = %d%", slippageTolerance.toFixed());
-    let needSwapETH = calcNeedBorrowValue(userBalance, userleverage);
-    console.log("   After swap, we need %s ETH to deposit into the Platform", num2Fixed(needSwapETH, 18));
-    let amountOutLeast = getAmountOutleast(needSwapETH, slippage);
-    console.log("   So after swap, the output should be at least = ", num2Fixed(amountOutLeast, 18));
-
-    const {mValue, single, path} = await quoterUniswap('DAI', 'WETH', flashloanAmount.toString(), slippage, false, false);
+    const {mValue, single, path} = await quoterUniswap('DAI', 'WETH', flashLoanAmount.toString(), slippage, false, false);
     const minimumAmount = mValue;
     // const minimumAmount = "5269674485762893556";
     // const path = "0x6b175474e89094c44da98b954eedeac495271d0f0001f4c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2";
@@ -122,11 +63,11 @@ async function main() {
     const debtTokenAddress = await getAssetDebtTokenAddress(DaiAddress);
     const debtToken = debtTokenContract(debtTokenAddress, fakeSigner);
     // it need to be approved by user, so contract can credit the debt to user address
-    await apporve2Borrow(debtToken, fakeSigner, flashLoanProxy.address, flashloanAmount); 
+    await apporve2Borrow(debtToken, fakeSigner, flashLoanProxy.address, flashLoanAmount); 
     await checkBorrowAllowance(debtToken, fakeSigner.address, flashLoanProxy.address);
     
     const assets : string[] = [DaiAddress,];
-    const amounts : ethers.BigNumber[] = [flashloanAmount, ]; 
+    const amounts : ethers.BigNumber[] = [flashLoanAmount, ]; 
     const interestRateModes : ethers.BigNumber[] = [BigNumber.from("2"), ];
 
     // params: single+amountOutMinimum+path, bool+uint256+bytes
@@ -134,7 +75,6 @@ async function main() {
 
     console.log("");
     console.log("Transaction Begin...");
-    
     const tx2 = await AAVE_POOL.connect(fakeSigner).flashLoan(
       flashLoanProxy.address,
       assets,
@@ -144,11 +84,11 @@ async function main() {
       params,
       0,
     );
+
     accountData = await AAVE_POOL.getUserAccountData(fakeSigner.address);
     showUserAccountData(accountData);
     let userTotalCollaterBase = getTotalCollateralBase(accountData);
-    let userTotalDebtBase = getTotalDebtBase(accountData);
-    let calcLeverage = userTotalCollaterBase.mul(1e8).div(WETHValue)
+    let calcLeverage = userTotalCollaterBase.mul(1e8).div(assetValue)
     console.log("Now user leverage = %d", num2Fixed(calcLeverage, 8));
     // end
 }

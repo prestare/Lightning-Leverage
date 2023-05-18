@@ -16,7 +16,7 @@ import { hre } from "./constant";
 import {
   quoterUniswap
 } from "./helpers/UniswapQuoter";
-import { allowFlashLoanContract, getUserCollateralBalance, initCompContract, supplyWETH } from './helpers/compHelper';
+import { allowFlashLoanContract, depositToComp, getUserCollateralBalance, initCompContract, supplyWETH } from './helpers/compHelper';
 
 /*
  *  example: change deposit: WETH => WBTC in comp
@@ -40,7 +40,8 @@ async function main() {
 
   const depositAmount = ethers.utils.parseUnits("2", "ether");
   // use bulker to supply eth
-  await supplyWETH(fakeSigner, depositAmount);
+  await depositToComp(fakeSigner, fakeSigner.address, WETHAddress, depositAmount, true);
+  
   let userCollateralBalanceWETH = await getUserCollateralBalance(fakeSigner.address, WETHAddress);
   let userCollateralBalanceWBTC = await getUserCollateralBalance(fakeSigner.address, WBTC_ADDRESS);
   console.log("After Deposit, User collateral balance is: %d WETH", num2Fixed(userCollateralBalanceWETH, 18));
