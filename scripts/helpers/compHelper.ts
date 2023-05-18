@@ -1,10 +1,11 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { BigNumber, Contract, Signer, ethers } from 'ethers';
 import { 
+    WETHAddress,
     bulker_ADDRESS,
     cUSDC_comet_ADDRESS,
 } from '../address';
-import {getMaxLeverage} from "./leverage";
+import {adoptTokenDicimals, calcNeedBorrowAmount, calcNeedBorrowValue, calcUserAssetValue, getMaxLeverage} from "./leverage";
 export var BULKER: Contract;
 export var COMET: Contract;
 import {hre} from "../constant";
@@ -17,16 +18,30 @@ export const initCompContract = async (signer: Signer) => {
     COMET = new ethers.Contract(cUSDC_comet_ADDRESS, cometABI, signer);
 }
 
-export const supplyWETH =async (user: SignerWithAddress, amount: BigNumber) => {
+export const supplyWETH =async (signer: SignerWithAddress, accountAddress: string, amount: BigNumber) => {
     const abiCoder = new ethers.utils.AbiCoder;
     // 2 mean supply eth 
     const action = [abiCoder.encode(["uint"], [2]), ];
     // console.log(action);
-    const data: string[] = [abiCoder.encode(["address", "address", "uint"], [cUSDC_comet_ADDRESS, user.address, amount]),];
+    const data: string[] = [abiCoder.encode(["address", "address", "uint"], [cUSDC_comet_ADDRESS, accountAddress, amount]),];
     // console.log(data);
-    const tx = await BULKER.connect(user).invoke(action, data, {value: amount});
+    const tx = await BULKER.connect(signer).invoke(action, data, {value: amount});
     let tx_receipt = await tx.wait();
     // console.log(tx_receipt);
+}
+
+export const depositToComp = async (signer: SignerWithAddress, accountAddress: string, assetAddress: string, amount: BigNumber, isETH: boolean) => {
+    let userCollateralBalance = await getUserCollateralBalance(signer.address, assetAddress);
+    console.log(`Before deposit, user collateral balance is: ${userCollateralBalance.toString()}`);
+
+    if (assetAddress == WETHAddress && isETH) {
+        await supplyWETH(signer, accountAddress, amount);
+    } else {
+        await COMET.supplyTo(accountAddress, assetAddress, amount);
+    }
+
+    userCollateralBalance = await getUserCollateralBalance(signer.address, assetAddress);
+    console.log(`After deposit, user collateral balance is: ${userCollateralBalance.toString()}`);
 }
 
 export const getUserCollateralBalance = async (userAddress: string, assetAddress: string) => {
@@ -38,13 +53,37 @@ export const getAssetPriceOnComp =async (assetAddress: string) => {
     return (await COMET.callStatic.getPrice(priceFeed));
 }
 
-export const getMaxLeverageOnComp =async (asset: string, TokenName: string) => {
-    let assetLTV = BigInt(await getAssetCF(asset));
+export const getMaxLeverageOnComp =async (signer: SignerWithAddress, accountAddress: string, assetAddress: string) => {
+    const assetPrice = await getAssetPriceOnComp(assetAddress);
+    const userCollateralBalance = await getUserCollateralBalance(accountAddress, assetAddress);
+    const assetDecimal = 18;
+    const assetValue = await calcUserAssetValue(userCollateralBalance, assetPrice, assetDecimal);
+
+    const assetLTV = BigInt(await getAssetCF(assetAddress));
     // MAX Leverage = 1 / (1 - LTV)
-    let maxleverage = await getMaxLeverage(assetLTV);
-    console.log("   According to the Comp %s Asset Configuration:", TokenName);
+    const maxleverage = await getMaxLeverage(assetLTV);
+    const maxBorrowCap = assetValue.mul(maxleverage);
+
     console.log("       The Maximum leverage abilidity = ", maxleverage.toString());
-    return maxleverage;
+    return {assetValue, maxleverage, maxBorrowCap};
+}
+
+export const calcUserLeverFlashLoanComp = async (signer: Signer, assetAddress: string, accountAddress:string, leverage: number) => {
+    const assetPrice = await getAssetPriceOnComp(assetAddress);
+    const userCollateralBalance = await getUserCollateralBalance(accountAddress, assetAddress);
+    const assetDecimal = 18;
+    const assetValue = await calcUserAssetValue(userCollateralBalance, assetPrice, assetDecimal);
+
+    let needBorrowAmountUSD = calcNeedBorrowValue(assetValue, leverage);
+    console.log("       so user need to flash loan (in USDC) = $%d", ethers.utils.formatUnits(needBorrowAmountUSD, 8).toString());
+    let needBorrowAmount = calcNeedBorrowAmount(needBorrowAmountUSD, assetPrice);
+    console.log("       so user need to borrow short asset Amount = %d", ethers.utils.formatUnits(needBorrowAmount, 8).toString());
+    let flashLoanAmount = adoptTokenDicimals(needBorrowAmount, 8, assetDecimal);
+    console.log("       so flash loan Amount = %s", flashLoanAmount.toString());
+
+    return {
+        flashLoanAmount,
+    }
 }
 
 export const allowFlashLoanContract = async (signer: SignerWithAddress, flashLoanAddress: string) => {

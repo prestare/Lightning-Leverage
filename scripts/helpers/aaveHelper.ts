@@ -153,7 +153,7 @@ export const calcFlashLoanAmountByRepayAmount = async (amount: BigNumber) => {
     return flashLoanAmount;
 }
 
-export const depositToAave = async (signer: SignerWithAddress, accountAddress: string, assetAddress: string, amount: BigNumber) => {
+export const depositToAave = async (signer: SignerWithAddress, accountAddress: string, assetAddress: string, amount: BigNumber, isETH: boolean) => {
     const aTokenAddress = await getAssetATokenAddress(assetAddress);
     const aToken = aTokenContract(aTokenAddress, signer);
 
@@ -162,7 +162,7 @@ export const depositToAave = async (signer: SignerWithAddress, accountAddress: s
     console.log(`Before deposit, the ${accountAddress}'s balance: ${balance.toString()}`);
 
     console.log("Now, User deposit %d to AAVE", amount);
-    if (assetAddress == WETHAddress) {
+    if (assetAddress == WETHAddress && isETH) {
         await WETH_GATEWAY.connect(signer).depositETH(accountAddress, accountAddress, 0, { value: amount }); // the first params is useless
     } else {
         await AAVE_POOL.connect(signer).supply(assetAddress, amount, accountAddress, 0);
