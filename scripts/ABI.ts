@@ -9,6 +9,7 @@ export const aTokenAbi = [
     "function balanceOf(address account) external view returns (uint256)",
     "function approve(address spender, uint256 amount) external returns (bool)",
     "function nonces(address owner) external view returns (uint256)",
+    "function decimals() external view returns (uint8)",
     "function name() external view returns (string memory)"
 ];
 

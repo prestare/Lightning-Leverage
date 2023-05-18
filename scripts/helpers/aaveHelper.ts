@@ -4,17 +4,18 @@ import {
     AAVE_POOL_ADDRESS,
     AAVE_Price_Oricle_Address,
     WETH_GATEWAY_ADDRESS,
-    aWETHAddress,
-    AAVE_Pool_Data_Provider_Address
+    AAVE_Pool_Data_Provider_Address,
+    WETHAddress
 } from "../address";
 import {
     aTokenAbi,
     debtTokenABI,
+    erc20,
     WETHGateABI
-  } from "../ABI";
-import {hre} from "../constant";
-import {getLtv} from "./aaveConfigHelper";
-import {getMaxLeverage} from "./leverage";
+} from "../ABI";
+import { hre } from "../constant";
+import { getLtv } from "./aaveConfigHelper";
+import { adoptTokenDicimals, calcLeveragePosition, calcNeedBorrowAmount, calcNeedBorrowValue, calcUserAssetValue, getMaxLeverage } from "./leverage";
 
 export var AAVE_POOL: Contract;
 export var AAVE_POOL_DATA_PROVIDER: Contract;
@@ -31,7 +32,7 @@ export const initAAVEContract = async (signer: Signer) => {
 }
 
 export const aTokenContract = (aTokenAddress: string, signer: Signer) => {
-    return (new ethers.Contract(aWETHAddress, aTokenAbi, signer));
+    return (new ethers.Contract(aTokenAddress, aTokenAbi, signer));
 }
 
 export const getApprovePermit = async (token: Contract, signer: SignerWithAddress, spender: string, value: string) => {
@@ -49,47 +50,55 @@ export const getApprovePermit = async (token: Contract, signer: SignerWithAddres
         Permit: [{
             name: "owner",
             type: "address"
-          },
-          {
+        },
+        {
             name: "spender",
             type: "address"
-          },
-          {
+        },
+        {
             name: "value",
             type: "uint256"
-          },
-          {
+        },
+        {
             name: "nonce",
             type: "uint256"
-          },
-          {
+        },
+        {
             name: "deadline",
             type: "uint256"
-          },
+        },
         ],
-      };
+    };
 
-      const deadline = Math.floor(Date.now() / 1000) + 4200;
-      const values = {
+    const deadline = Math.floor(Date.now() / 1000) + 4200;
+    const values = {
         owner: signer.address,
         spender: spender,
         value: value,
         nonce: nonces,
         deadline: deadline,
-      };
+    };
 
-      const signature = await signer._signTypedData(domain, types, values);
-      const sig = ethers.utils.splitSignature(signature);
+    const signature = await signer._signTypedData(domain, types, values);
+    const sig = ethers.utils.splitSignature(signature);
 
-      return {deadline,sig};
+    return { deadline, sig };
 }
 
 export const getAssetDebtTokenAddress = async (asset: string) => {
     return (await AAVE_POOL.getReserveData(asset)).variableDebtTokenAddress;
 }
 
+export const getAssetATokenAddress = async (asset: string) => {
+    return (await AAVE_POOL.getReserveData(asset)).aTokenAddress;
+}
+
 export const debtTokenContract = (debtTokenAddress: string, signer: Signer) => {
     return (new ethers.Contract(debtTokenAddress, debtTokenABI, signer));
+}
+
+export const ERC20Contract = (tokenAddress: string, signer: Signer) => {
+    return (new ethers.Contract(tokenAddress, erc20, signer));
 }
 
 // Before helping user to flash loan, user need to approve us to borrow on behalf of their account
@@ -122,7 +131,7 @@ export const getUserDebtTokenBalance = async (asset: string, userAddress: string
     return userReserveData[interestRateMode];
 }
 
-export const getMaxLeverageOnAAVE =async (asset: string, POOL: Contract, TokenName: string) => {
+export const getMaxLeverageOnAAVE = async (asset: string, POOL: Contract, TokenName: string) => {
     let assetConfig = (await POOL.getConfiguration(asset)).data;
     let assetLTV = getLtv(assetConfig);
     // MAX Leverage = 1 / (1 - LTV)
@@ -135,13 +144,99 @@ export const getMaxLeverageOnAAVE =async (asset: string, POOL: Contract, TokenNa
 export const calcFlashLoanFee = async (amount: BigNumber) => {
     let Premium = await AAVE_POOL.FLASHLOAN_PREMIUM_TOTAL();
     let fee = amount.mul(Premium).div(10000);
-    return fee;   
+    return fee;
 }
 
 export const calcFlashLoanAmountByRepayAmount = async (amount: BigNumber) => {
     const Premium = await AAVE_POOL.FLASHLOAN_PREMIUM_TOTAL();
     const flashLoanAmount = amount.mul(10000).div(Premium.add(10000));
     return flashLoanAmount;
+}
+
+export const depositToAave = async (signer: SignerWithAddress, accountAddress: string, assetAddress: string, amount: BigNumber) => {
+    const aTokenAddress = await getAssetATokenAddress(assetAddress);
+    const aToken = aTokenContract(aTokenAddress, signer);
+
+    const balance = await getUserATokenBalance(aToken, accountAddress);
+    console.log("asset address: ", assetAddress);
+    console.log(`Before deposit, the ${accountAddress}'s balance: ${balance.toString()}`);
+
+    console.log("Now, User deposit %d to AAVE", amount);
+    if (assetAddress == WETHAddress) {
+        await WETH_GATEWAY.connect(signer).depositETH(accountAddress, accountAddress, 0, { value: amount }); // the first params is useless
+    } else {
+        await AAVE_POOL.connect(signer).supply(assetAddress, amount, accountAddress, 0);
+    }
+
+    console.log("After Deposit...");
+    // check if we actually have one aWETH
+    const aTokenBalance = await getUserATokenBalance(aToken, accountAddress);
+    console.log(`After deposit, the ${accountAddress}'s balance: ${balance.toString()}`);
+}
+
+export const calcUserAaveMaxLeverage = async (signer: Signer, accountAddress: string, assetAddress: string) => {
+    const aTokenAddress = await getAssetATokenAddress(assetAddress);
+    const aToken = aTokenContract(aTokenAddress, signer);
+    const aTokenDecimal = await aToken.decimals();
+
+    console.log("User address: ", accountAddress);
+    console.log("Asset address: ", assetAddress);
+    console.log("Now calculate user max leverage...");
+    let assetPrice = await getAssetPriceOnAAVE(assetAddress);
+
+    let userBalance = await getUserATokenBalance(aToken, accountAddress);
+    const assetValue = await calcUserAssetValue(userBalance, assetPrice, aTokenDecimal);
+
+    let maxleverage = await getMaxLeverageOnAAVE(assetAddress, AAVE_POOL, "");
+    // WETH Value * MAX Leverage = MAX Borrow Cap 
+    let maxBorrowCap = assetValue.mul(maxleverage);
+    console.log("       The MAX amount of position (in USD)  = $%d", ethers.utils.formatUnits(maxBorrowCap, 8).toString());
+
+    return {assetValue, maxleverage, maxBorrowCap};
+}
+
+export const calcUserLeverFlashLoanAave = async (signer: Signer, accountAddress: string, leverage: number,
+    depositAssetAddress: string, longAssetAddress: string, shortAssetAddress: string) => {
+    const aTokenAddress = await getAssetATokenAddress(depositAssetAddress);
+    const aToken = aTokenContract(aTokenAddress, signer);
+    let aTokenDecimal = await aToken.decimals();
+
+    let depositAssetPrice = await getAssetPriceOnAAVE(depositAssetAddress!);
+    let userBalance = await getUserATokenBalance(aToken, accountAddress);
+    const depositValue = await calcUserAssetValue(userBalance, depositAssetPrice, aTokenDecimal);
+
+    let shortAssetPrice = await getAssetPriceOnAAVE(shortAssetAddress);
+    let shortAsstToken = ERC20Contract(shortAssetAddress, signer);
+    let shortAssetDecimal = await shortAsstToken.decimals();
+
+    let longAssetPrice = await getAssetPriceOnAAVE(longAssetAddress!);
+    let longAssetToken = ERC20Contract(longAssetAddress, signer);
+    let longAssetDecimal = await longAssetToken.decimals();
+
+    console.log("   short asset: ", shortAssetAddress);
+    console.log("   short asset price: ", num2Fixed(shortAssetPrice, 8));
+    console.log("   long asset: ", longAssetAddress);
+    console.log("   long asset price: ", num2Fixed(longAssetPrice, 8));
+    console.log("   leverage: ", leverage);
+
+    let newPosition = calcLeveragePosition(depositValue, leverage);
+    console.log("       user want to leverage up their position to $%d", newPosition.toString());
+    let needBorrowAmountUSD = calcNeedBorrowValue(depositValue, leverage);
+    console.log("       so user need to flash loan (in USDC) = $%d", ethers.utils.formatUnits(needBorrowAmountUSD, 8).toString());
+
+    let needBorrowAmount = calcNeedBorrowAmount(needBorrowAmountUSD, shortAssetPrice);
+    console.log("       so user need to borrow short asset Amount = %d", ethers.utils.formatUnits(needBorrowAmount, 8).toString());
+    let flashLoanAmount = adoptTokenDicimals(needBorrowAmount, 8, shortAssetDecimal);
+    console.log("       so flash loan Amount = %s", flashLoanAmount.toString());
+
+    let needSwapLongAssetAmount = calcNeedBorrowAmount(needBorrowAmountUSD, longAssetPrice);
+    let needSwapLongAsset = adoptTokenDicimals(needSwapLongAssetAmount, 8, longAssetDecimal);
+    console.log("   After swap, we need %s long asset to deposit into the Platform", num2Fixed(needSwapLongAsset, 18));
+
+    return {
+        flashLoanAmount,
+        needSwapLongAsset,
+    }
 }
 
 // export interface AccountData {
@@ -172,6 +267,6 @@ export const showUserAccountData = async (accountData: any) => {
 }
 
 export const num2Fixed = (number: BigNumber, decimal: number): string => {
-    return ethers.utils.formatUnits(number, decimal).toString() 
+    return ethers.utils.formatUnits(number, decimal).toString()
 }
 
