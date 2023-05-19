@@ -3,7 +3,9 @@ pragma solidity ^0.8.0;
 
 import {IPoolAddressesProvider} from "./interfaces/AAVE/IPoolAddressesProvider.sol";
 import {IPool} from "./interfaces/AAVE/IPool.sol";
+import {IWETHGateway} from "./interfaces/AAVE/IWETHGateway.sol";
 import {IComet} from "./interfaces/COMP/IComet.sol";
+import {IBulker} from "./interfaces/COMP/IBulker.sol";
 import {IERC20} from "./interfaces/IERC20.sol";
 import {ISwapRouter} from "@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol";
 import "./libraries/Path.sol";
@@ -38,13 +40,23 @@ contract FlashLoanGateway {
     IPoolAddressesProvider public ADDRESSES_PROVIDER;
     IPool public POOL;
     IComet public COMET;
+    IWETHGateway public WETH_GATEWAY;
+    IBulker public BULKER;
     address public SWAP_ROUTER;
 
-    constructor(address provider, address swapRouter, address comet) {
-        ADDRESSES_PROVIDER = IPoolAddressesProvider(provider);
+    constructor(
+        IPoolAddressesProvider provider,
+        address swapRouter,
+        IComet comet,
+        IWETHGateway wethGateway,
+        IBulker bulker
+    ) {
+        ADDRESSES_PROVIDER = provider;
         POOL = IPool(ADDRESSES_PROVIDER.getPool());
+        COMET = comet;
+        WETH_GATEWAY = wethGateway;
+        BULKER = bulker;
         SWAP_ROUTER = swapRouter;
-        COMET = IComet(comet);
     }
 
     function depositAaveAndFlashLoanSimple(
@@ -52,6 +64,19 @@ contract FlashLoanGateway {
         FlashLoanSimpleParams calldata flashLoanSimpleParams
     ) external {
         depositToAave(depositParams);
+        POOL.flashLoanSimple(
+            flashLoanSimpleParams.receiverAddress,
+            flashLoanSimpleParams.asset,
+            flashLoanSimpleParams.amount,
+            flashLoanSimpleParams.params,
+            flashLoanSimpleParams.referralCode
+        );
+    }
+
+    function depositETHAaveAndFlashLoanSimple(
+        FlashLoanSimpleParams calldata flashLoanSimpleParams
+    ) external {
+        depositETHToAave();
         POOL.flashLoanSimple(
             flashLoanSimpleParams.receiverAddress,
             flashLoanSimpleParams.asset,
@@ -89,6 +114,19 @@ contract FlashLoanGateway {
         );
     }
 
+    function depositETHCompAndFlashLoanSimple(
+        FlashLoanSimpleParams calldata flashLoanSimpleParams
+    ) external {
+        depositETHToComp();
+        POOL.flashLoanSimple(
+            flashLoanSimpleParams.receiverAddress,
+            flashLoanSimpleParams.asset,
+            flashLoanSimpleParams.amount,
+            flashLoanSimpleParams.params,
+            flashLoanSimpleParams.referralCode
+        );
+    }
+
     function swapDepositCompAndFlashLoanSimple(
         SwapLogic.SwapParams memory swapParams,
         FlashLoanSimpleParams calldata flashLoanSimpleParams
@@ -108,7 +146,22 @@ contract FlashLoanGateway {
         FlashLoanParams calldata flashLoanParams
     ) external {
         depositToAave(depositParams);
-         POOL.flashLoan(
+        POOL.flashLoan(
+            flashLoanParams.receiverAddress,
+            flashLoanParams.assets,
+            flashLoanParams.amounts,
+            flashLoanParams.interestRateModes,
+            flashLoanParams.onBehalfOf,
+            flashLoanParams.params,
+            flashLoanParams.referralCode
+        );
+    }
+
+    function depositETHAaveAndFlashLoan(
+        FlashLoanParams calldata flashLoanParams
+    ) external {
+        depositETHToAave();
+        POOL.flashLoan(
             flashLoanParams.receiverAddress,
             flashLoanParams.assets,
             flashLoanParams.amounts,
@@ -151,6 +204,21 @@ contract FlashLoanGateway {
         );
     }
 
+    function depositETHCompAndFlashLoan(
+        FlashLoanParams calldata flashLoanParams
+    ) external payable {
+        depositETHToComp();
+        POOL.flashLoan(
+            flashLoanParams.receiverAddress,
+            flashLoanParams.assets,
+            flashLoanParams.amounts,
+            flashLoanParams.interestRateModes,
+            flashLoanParams.onBehalfOf,
+            flashLoanParams.params,
+            flashLoanParams.referralCode
+        );
+    }
+
     function swapDepositCompAndFlashLoan(
         SwapLogic.SwapParams memory swapParams,
         FlashLoanParams calldata flashLoanParams
@@ -175,6 +243,10 @@ contract FlashLoanGateway {
         POOL.supply(depositParams.asset, depositParams.amount, msg.sender, 0);
     }
 
+    function depositETHToAave() public payable {
+        WETH_GATEWAY.depositETH{value: msg.value}(address(0), msg.sender, 0);
+    }
+
     /**
      * @dev Swaps `amount` of `from` asset on Uniswap into `to` asset and supply it on Aave.
      */
@@ -194,6 +266,18 @@ contract FlashLoanGateway {
             depositParams.amount
         );
         COMET.supplyTo(msg.sender, depositParams.asset, depositParams.amount);
+    }
+
+    function depositETHToComp() public payable {
+        bytes[] memory supplyAssetCalldatas = new bytes[](1);
+        supplyAssetCalldatas[1] = abi.encode(
+            address(COMET),
+            msg.sender,
+            msg.value
+        );
+        uint256[] memory actions = new uint256[](1);
+        actions[0] = 2;
+        BULKER.invoke{value: msg.value}(actions, supplyAssetCalldatas);
     }
 
     /**
