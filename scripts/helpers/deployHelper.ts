@@ -19,8 +19,9 @@ export const deployAll = async (signer: SignerWithAddress) => {
     const swapLogic = await deploySwapLogicLibrary(signer, pathLib);
     const flashLoan = await deployFlashLoan(signer, pathLib, swapLogic)
     const flashLoanProxy = await deployFlashLoanProxy(signer, flashLoan.address);
+    const flashLoanGateWay = await deployFlashLoanGateway(signer, pathLib,swapLogic)
 
-    return flashLoanProxy;
+    return {flashLoanProxy, flashLoanGateWay};
 }
 
 export const deployFlashLoanProxy = async (signer: SignerWithAddress, implementation: string) => {
@@ -48,6 +49,23 @@ export const deployFlashLoan = async (signer: SignerWithAddress, pathLib: ethers
         `flash loan deployed to ${flashLoan.address}`
     );
     return flashLoan;
+}
+
+export const deployFlashLoanGateway = async (signer: SignerWithAddress, pathLib: ethers.Contract, swapLogic: ethers.Contract) => {
+    const flashLoanGatewayFact = await hre.ethers.getContractFactory("FlashLoanGateway", {
+        libraries: {
+            Path: pathLib.address,
+            SwapLogic: swapLogic.address
+        }
+    });
+    const data = encodeInitData();
+    let flashLoanGateWay = await flashLoanGatewayFact.connect(signer).deploy(poolAddressProvider, V3_SWAP_ROUTER_ADDRESS, cUSDC_comet_ADDRESS);
+    await flashLoanGateWay.deployed();
+    console.log(
+        `flashLoanProxy deployed to ${flashLoanGateWay.address}`
+    );
+
+    return flashLoanGateWay;
 }
 
 export const deployPathLibrary = async (signer: SignerWithAddress) => {

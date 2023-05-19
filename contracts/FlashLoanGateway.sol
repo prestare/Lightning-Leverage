@@ -9,7 +9,7 @@ import {ISwapRouter} from "@uniswap/v3-periphery/contracts/interfaces/ISwapRoute
 import "./libraries/Path.sol";
 import "./libraries/SwapLogic.sol";
 
-contract FlashLoanGateWay {
+contract FlashLoanGateway {
     using Path for bytes;
 
     struct DepositParams {

@@ -30,7 +30,7 @@ async function main() {
 
   const [fakeSigner, other]: SignerWithAddress[] = await hre.ethers.getSigners();
 
-  const flashLoanProxy = await deployAll(fakeSigner);
+  const {flashLoanProxy} = await deployAll(fakeSigner);
   console.log("Now user address: ", fakeSigner.address);
 
   await initAAVEContract(fakeSigner);

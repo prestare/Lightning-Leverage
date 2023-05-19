@@ -29,7 +29,7 @@ async function main() {
     await impersonateAccount(WALLET_ADDRESS);
     const fakeSigner: SignerWithAddress = await hre.ethers.getSigner(WALLET_ADDRESS);
 
-    const flashLoanProxy = await deployAll(fakeSigner);
+    const {flashLoanProxy} = await deployAll(fakeSigner);
     
     console.log("Now user address: ", fakeSigner.address);
   
