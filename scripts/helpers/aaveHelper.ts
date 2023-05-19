@@ -192,7 +192,7 @@ export const calcUserAaveMaxLeverage = async (signer: Signer, accountAddress: st
     let maxBorrowCap = assetValue.mul(maxleverage);
     console.log("       The MAX amount of position (in USD)  = $%d", ethers.utils.formatUnits(maxBorrowCap, 8).toString());
 
-    return {assetValue, maxleverage, maxBorrowCap};
+    return { assetValue, maxleverage, maxBorrowCap };
 }
 
 export const calcUserLeverFlashLoanAave = async (signer: Signer, accountAddress: string, leverage: number,
@@ -205,6 +205,11 @@ export const calcUserLeverFlashLoanAave = async (signer: Signer, accountAddress:
     let userBalance = await getUserATokenBalance(aToken, accountAddress);
     const depositValue = await calcUserAssetValue(userBalance, depositAssetPrice, aTokenDecimal);
 
+    return calcLeverFlashLoanAaveByValue(signer, leverage, depositValue, longAssetAddress, shortAssetAddress)
+}
+
+export const calcLeverFlashLoanAaveByValue = async (signer: Signer, leverage: number,
+    value: BigNumber, longAssetAddress: string, shortAssetAddress: string) => {
     let shortAssetPrice = await getAssetPriceOnAAVE(shortAssetAddress);
     let shortAsstToken = ERC20Contract(shortAssetAddress, signer);
     let shortAssetDecimal = await shortAsstToken.decimals();
@@ -219,9 +224,9 @@ export const calcUserLeverFlashLoanAave = async (signer: Signer, accountAddress:
     console.log("   long asset price: ", num2Fixed(longAssetPrice, 8));
     console.log("   leverage: ", leverage);
 
-    let newPosition = calcLeveragePosition(depositValue, leverage);
+    let newPosition = calcLeveragePosition(value, leverage);
     console.log("       user want to leverage up their position to $%d", newPosition.toString());
-    let needBorrowAmountUSD = calcNeedBorrowValue(depositValue, leverage);
+    let needBorrowAmountUSD = calcNeedBorrowValue(value, leverage);
     console.log("       so user need to flash loan (in USDC) = $%d", ethers.utils.formatUnits(needBorrowAmountUSD, 8).toString());
 
     let needBorrowAmount = calcNeedBorrowAmount(needBorrowAmountUSD, shortAssetPrice);
@@ -238,6 +243,7 @@ export const calcUserLeverFlashLoanAave = async (signer: Signer, accountAddress:
         needSwapLongAsset,
     }
 }
+
 
 // export interface AccountData {
 //     totalCollateralBase : BigNumber;

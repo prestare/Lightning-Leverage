@@ -74,11 +74,15 @@ export const calcUserLeverFlashLoanComp = async (signer: Signer, assetAddress: s
     const assetDecimal = 18;
     const assetValue = await calcUserAssetValue(userCollateralBalance, assetPrice, assetDecimal);
 
-    let needBorrowAmountUSD = calcNeedBorrowValue(assetValue, leverage);
+    return calcLeverFlashLoanCompByAssetInfo(assetValue, assetPrice, assetDecimal, leverage);
+}
+
+export const calcLeverFlashLoanCompByAssetInfo = async (value: BigNumber, price:BigNumber, decimal:number, leverage: number) => {
+    let needBorrowAmountUSD = calcNeedBorrowValue(value, leverage);
     console.log("       so user need to flash loan (in USDC) = $%d", ethers.utils.formatUnits(needBorrowAmountUSD, 8).toString());
-    let needBorrowAmount = calcNeedBorrowAmount(needBorrowAmountUSD, assetPrice);
+    let needBorrowAmount = calcNeedBorrowAmount(needBorrowAmountUSD, price);
     console.log("       so user need to borrow short asset Amount = %d", ethers.utils.formatUnits(needBorrowAmount, 8).toString());
-    let flashLoanAmount = adoptTokenDicimals(needBorrowAmount, 8, assetDecimal);
+    let flashLoanAmount = adoptTokenDicimals(needBorrowAmount, 8, decimal);
     console.log("       so flash loan Amount = %s", flashLoanAmount.toString());
 
     return {
