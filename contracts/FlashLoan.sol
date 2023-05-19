@@ -129,9 +129,9 @@ contract FlashLoan {
         AaveOperationParams memory aaveOperationParams = AaveOperationParams({
             single: params.toBool(0),
             amountOutMinimum: params.toUint256(1),
-            path: params[33:params.length-4] // remove selector
+            path: params[33:params.length - 4] // remove selector
         });
-     
+
         (, address Long, ) = aaveOperationParams.path.decodeLastPool();
 
         SwapLogic.SwapParams memory swapParams = SwapLogic.SwapParams({
@@ -166,7 +166,12 @@ contract FlashLoan {
         IERC20(Long).approve(address(COMET), amount);
         COMET.supplyTo(initiator, Long, amount);
         COMET.collateralBalanceOf(initiator, Long);
-        COMET.withdrawFrom(initiator, address(this), USDC, compOperationParams.amountIn);
+        COMET.withdrawFrom(
+            initiator,
+            address(this),
+            USDC,
+            compOperationParams.amountIn
+        );
         IERC20(USDC).balanceOf(address(this));
 
         SwapLogic.SwapParams memory swapParams = SwapLogic.SwapParams({
@@ -178,10 +183,21 @@ contract FlashLoan {
         });
         uint256 amountOut = SwapLogic.swap(swapParams, false, SWAP_ROUTER);
 
-        IERC20(Long).approve(address(COMET), amountOut - compOperationParams.amountOutMinimum);
-        COMET.supplyTo(initiator, Long, amountOut - compOperationParams.amountOutMinimum);
+        IERC20(Long).approve(
+            address(COMET),
+            amountOut - compOperationParams.amountOutMinimum
+        );
+        COMET.supplyTo(
+            initiator,
+            Long,
+            amountOut - compOperationParams.amountOutMinimum
+        );
 
-        return IERC20(Long).approve(address(POOL), compOperationParams.amountOutMinimum);
+        return
+            IERC20(Long).approve(
+                address(POOL),
+                compOperationParams.amountOutMinimum
+            );
     }
 
     // selector: 0xd8ad4ac2
@@ -386,7 +402,12 @@ contract FlashLoan {
 
         uint256 amountOut = SwapLogic.swap(swapParams, false, SWAP_ROUTER);
 
-        leverageAAVEPos(asset, amountOut - aaveChangeParams.repayAmount, initiator, 0);
+        leverageAAVEPos(
+            asset,
+            amountOut - aaveChangeParams.repayAmount,
+            initiator,
+            0
+        );
 
         _safeApprove(asset, address(POOL), aaveChangeParams.repayAmount);
 
@@ -409,7 +430,7 @@ contract FlashLoan {
             repayAmount: amount + premiums,
             path: params[33:params.length - 4] // remove selector
         });
- 
+
         (address fromToken, , ) = compChangeParams.path.decodeFirstPool();
         console.log("amountIn:", compChangeParams.amountIn);
 
@@ -435,8 +456,16 @@ contract FlashLoan {
         console.log("amountOut: ", amountOut);
 
         _safeApprove(asset, address(POOL), compChangeParams.repayAmount);
-        _safeApprove(asset, address(COMET), amountOut - compChangeParams.repayAmount);
-        COMET.supplyTo(initiator, asset, amountOut - compChangeParams.repayAmount);
+        _safeApprove(
+            asset,
+            address(COMET),
+            amountOut - compChangeParams.repayAmount
+        );
+        COMET.supplyTo(
+            initiator,
+            asset,
+            amountOut - compChangeParams.repayAmount
+        );
 
         return true;
     }
@@ -468,7 +497,6 @@ contract FlashLoan {
     //     return true;
     // }
 
-   
     function leverageAAVEPos(
         address asset,
         uint256 amount,
