@@ -21,9 +21,9 @@ export const deployAll = async (signer: SignerWithAddress) => {
     const swapLogic = await deploySwapLogicLibrary(signer, pathLib);
     const flashLoan = await deployFlashLoan(signer, pathLib, swapLogic)
     const flashLoanProxy = await deployFlashLoanProxy(signer, flashLoan.address);
-    const flashLoanGateWay = await deployFlashLoanGateway(signer, pathLib,swapLogic)
+    const flashLoanGateway = await deployFlashLoanGateway(signer, pathLib,swapLogic)
 
-    return {flashLoanProxy, flashLoanGateWay};
+    return {flashLoanProxy, flashLoanGateway};
 }
 
 export const deployFlashLoanProxy = async (signer: SignerWithAddress, implementation: string) => {
@@ -61,13 +61,13 @@ export const deployFlashLoanGateway = async (signer: SignerWithAddress, pathLib:
         }
     });
     const data = encodeInitData();
-    let flashLoanGateWay = await flashLoanGatewayFact.connect(signer).deploy(poolAddressProvider, V3_SWAP_ROUTER_ADDRESS, cUSDC_comet_ADDRESS, WETH_GATEWAY_ADDRESS, bulker_ADDRESS);
-    await flashLoanGateWay.deployed();
+    let flashLoanGateway = await flashLoanGatewayFact.connect(signer).deploy(poolAddressProvider, V3_SWAP_ROUTER_ADDRESS, cUSDC_comet_ADDRESS, WETH_GATEWAY_ADDRESS, bulker_ADDRESS);
+    await flashLoanGateway.deployed();
     console.log(
-        `flashLoanGateway deployed to ${flashLoanGateWay.address}`
+        `flashLoanGateway deployed to ${flashLoanGateway.address}`
     );
 
-    return flashLoanGateWay;
+    return flashLoanGateway;
 }
 
 export const deployPathLibrary = async (signer: SignerWithAddress) => {
