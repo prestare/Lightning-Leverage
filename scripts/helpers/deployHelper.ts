@@ -1,10 +1,12 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { hre } from '../constant';
 import {
+    bulker_ADDRESS,
     cUSDC_comet_ADDRESS,
     poolAddressProvider,
     USDCAddress,
     V3_SWAP_ROUTER_ADDRESS,
+    WETH_GATEWAY_ADDRESS,
 } from '../address';
 import { ethers } from 'ethers';
 
@@ -59,10 +61,10 @@ export const deployFlashLoanGateway = async (signer: SignerWithAddress, pathLib:
         }
     });
     const data = encodeInitData();
-    let flashLoanGateWay = await flashLoanGatewayFact.connect(signer).deploy(poolAddressProvider, V3_SWAP_ROUTER_ADDRESS, cUSDC_comet_ADDRESS);
+    let flashLoanGateWay = await flashLoanGatewayFact.connect(signer).deploy(poolAddressProvider, V3_SWAP_ROUTER_ADDRESS, cUSDC_comet_ADDRESS, WETH_GATEWAY_ADDRESS, bulker_ADDRESS);
     await flashLoanGateWay.deployed();
     console.log(
-        `flashLoanProxy deployed to ${flashLoanGateWay.address}`
+        `flashLoanGateway deployed to ${flashLoanGateWay.address}`
     );
 
     return flashLoanGateWay;
