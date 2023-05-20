@@ -163,7 +163,7 @@ contract FlashLoan {
         address initiator,
         bytes calldata params
     ) external returns (bool) {
-        // initiator = tx.origin;
+        initiator = tx.origin;
         // params: single+amountIn+path, bool+uint256+bytes+bytes4
         CompOperationParams memory compOperationParams = CompOperationParams({
             single: params.toBool(0),
@@ -174,12 +174,7 @@ contract FlashLoan {
 
         IERC20(Long).approve(address(COMET), amount);
         COMET.supplyTo(initiator, Long, amount);
-        // uint256 bal = COMET.collateralBalanceOf(initiator, Long);     
-        // console.log("bal: ", bal);
-        // console.log("3");
-        // console.log("initiator:", initiator);
-        // console.log("this:", address(this));
-        console.log("usdc:", USDC);
+
         COMET.withdrawFrom(
             initiator,
             address(this),
@@ -321,8 +316,8 @@ contract FlashLoan {
         // bytes memory path = params[33:params.length - 4];
         // uint256 repayAmount = amount + premiums;
         (, address Long, ) = compRepayParams.path.decodeLastPool();
-        console.log("Long:", Long);
-        console.log("amountInMaximum:", compRepayParams.amountInMaximum);
+        // console.log("Long:", Long);
+        // console.log("amountInMaximum:", compRepayParams.amountInMaximum);
 
         IERC20(Short).approve(address(COMET), amount);
 
@@ -344,7 +339,7 @@ contract FlashLoan {
         });
 
         uint256 amountIn = SwapLogic.swap(swapParams, true, SWAP_ROUTER);
-        console.log("amountIn: ", amountIn);
+        // console.log("amountIn: ", amountIn);
 
         _safeApprove(Short, address(POOL), compRepayParams.repayAmount);
 

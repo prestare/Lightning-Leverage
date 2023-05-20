@@ -11,8 +11,6 @@ import {ISwapRouter} from "@uniswap/v3-periphery/contracts/interfaces/ISwapRoute
 import "./libraries/Path.sol";
 import "./libraries/SwapLogic.sol";
 
-import "hardhat/console.sol";
-
 contract FlashLoanGateway {
     using Path for bytes;
 
@@ -122,10 +120,6 @@ contract FlashLoanGateway {
         FlashLoanSimpleParams calldata flashLoanSimpleParams
     ) external payable {
         depositETHToComp();
-        console.log("receiverAddress: ", flashLoanSimpleParams.receiverAddress);
-        console.log("asset: ", flashLoanSimpleParams.asset);
-        console.log("amount: ", flashLoanSimpleParams.amount);
-        console.logBytes(flashLoanSimpleParams.params);
         POOL.flashLoanSimple(
             flashLoanSimpleParams.receiverAddress,
             flashLoanSimpleParams.asset,
@@ -168,10 +162,7 @@ contract FlashLoanGateway {
     function depositETHAaveAndFlashLoan(
         FlashLoanParams calldata flashLoanParams
     ) external payable {
-        console.logBytes(flashLoanParams.params);
-
         depositETHToAave();
-        console.log("begin flashLoan");
         POOL.flashLoan(
             flashLoanParams.receiverAddress,
             flashLoanParams.assets,
@@ -181,7 +172,6 @@ contract FlashLoanGateway {
             flashLoanParams.params,
             flashLoanParams.referralCode
         );
-        console.log("end flashloan");
     }
 
     function swapDepositAaveAndFlashLoan(
@@ -261,9 +251,7 @@ contract FlashLoanGateway {
     }
 
     function depositETHToAave() public payable {
-        console.log("begin depositETHToAave");
         WETH_GATEWAY.depositETH{value: msg.value}(address(0), msg.sender, 0);
-        console.log("end depositETHToAave");
     }
 
     /**
@@ -272,21 +260,18 @@ contract FlashLoanGateway {
     function swapAndDepositToAave(
         SwapLogic.SwapParams memory swapParams
     ) public {
-        console.log("begin swap");
         (address from, , ) = swapParams.path.decodeFirstPool();
         (, address to, ) = swapParams.path.decodeLastPool();
-        console.log("to: ", to);
 
         IERC20(from).transferFrom(msg.sender, address(this), swapParams.amount);
         IERC20(from).approve(address(SWAP_ROUTER), swapParams.amount);
         uint256 amountOut = SwapLogic.swap(swapParams, false, SWAP_ROUTER);
-        console.log("end swap");
+
         IERC20(to).approve(address(POOL), amountOut);
         POOL.supply(to, amountOut, msg.sender, 0);
     }
 
     function depositToComp(DepositParams calldata depositParams) public {
-        console.log("begin depositToComp");
         IERC20(depositParams.asset).transferFrom(
             msg.sender,
             address(this),
@@ -297,11 +282,9 @@ contract FlashLoanGateway {
             depositParams.amount
         );
         COMET.supplyTo(msg.sender, depositParams.asset, depositParams.amount);
-        console.log("end depositToComp");
     }
 
     function depositETHToComp() public payable {
-        console.log("begin depositETHToComp");
         bytes[] memory supplyAssetCalldatas = new bytes[](1);
         supplyAssetCalldatas[0] = abi.encode(
             address(COMET),
@@ -311,7 +294,6 @@ contract FlashLoanGateway {
         uint256[] memory actions = new uint256[](1);
         actions[0] = 2;
         BULKER.invoke{value: msg.value}(actions, supplyAssetCalldatas);
-        console.log("end depositETHToComp");
     }
 
     /**
