@@ -199,11 +199,21 @@ export const calcUserLeverFlashLoanAave = async (signer: Signer, accountAddress:
     depositAssetAddress: string, longAssetAddress: string, shortAssetAddress: string) => {
     const aTokenAddress = await getAssetATokenAddress(depositAssetAddress);
     const aToken = aTokenContract(aTokenAddress, signer);
+
+    let userBalance = await getUserATokenBalance(aToken, accountAddress);
+
+    return calcLeverFlashLoanAaveByBalance(signer, userBalance, leverage, depositAssetAddress, longAssetAddress, shortAssetAddress)
+}
+
+export const calcLeverFlashLoanAaveByBalance = async (signer: Signer, balance: BigNumber, leverage: number,
+    depositAssetAddress: string, longAssetAddress: string, shortAssetAddress: string) => {
+    const aTokenAddress = await getAssetATokenAddress(depositAssetAddress);
+    const aToken = aTokenContract(aTokenAddress, signer);
     let aTokenDecimal = await aToken.decimals();
 
     let depositAssetPrice = await getAssetPriceOnAAVE(depositAssetAddress!);
-    let userBalance = await getUserATokenBalance(aToken, accountAddress);
-    const depositValue = await calcUserAssetValue(userBalance, depositAssetPrice, aTokenDecimal);
+
+    const depositValue = await calcUserAssetValue(balance, depositAssetPrice, aTokenDecimal);
 
     return calcLeverFlashLoanAaveByValue(signer, leverage, depositValue, longAssetAddress, shortAssetAddress)
 }

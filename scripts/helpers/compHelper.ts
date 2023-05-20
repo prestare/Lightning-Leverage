@@ -69,13 +69,18 @@ export const getMaxLeverageOnComp =async (signer: SignerWithAddress, accountAddr
 }
 
 export const calcUserLeverFlashLoanComp = async (signer: Signer, assetAddress: string, accountAddress:string, leverage: number) => {
-    const assetPrice = await getAssetPriceOnComp(assetAddress);
     const userCollateralBalance = await getUserCollateralBalance(accountAddress, assetAddress);
+
+    return calcLeverFlashLoanCompByBalance(signer, assetAddress, userCollateralBalance, leverage);
+}
+export const  calcLeverFlashLoanCompByBalance  = async (signer: Signer, assetAddress: string, balance: BigNumber, leverage: number) => {
+    const assetPrice = await getAssetPriceOnComp(assetAddress);
     const assetDecimal = 18;
-    const assetValue = await calcUserAssetValue(userCollateralBalance, assetPrice, assetDecimal);
+    const assetValue = await calcUserAssetValue(balance, assetPrice, assetDecimal);
 
     return calcLeverFlashLoanCompByAssetInfo(assetValue, assetPrice, assetDecimal, leverage);
 }
+
 
 export const calcLeverFlashLoanCompByAssetInfo = async (value: BigNumber, price:BigNumber, decimal:number, leverage: number) => {
     let needBorrowAmountUSD = calcNeedBorrowValue(value, leverage);

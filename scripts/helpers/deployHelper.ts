@@ -60,7 +60,6 @@ export const deployFlashLoanGateway = async (signer: SignerWithAddress, pathLib:
             SwapLogic: swapLogic.address
         }
     });
-    const data = encodeInitData();
     let flashLoanGateway = await flashLoanGatewayFact.connect(signer).deploy(poolAddressProvider, V3_SWAP_ROUTER_ADDRESS, cUSDC_comet_ADDRESS, WETH_GATEWAY_ADDRESS, bulker_ADDRESS);
     await flashLoanGateway.deployed();
     console.log(

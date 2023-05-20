@@ -121,9 +121,13 @@ contract FlashLoan {
         address initiator,
         bytes calldata params
     ) external returns (bool) {
-        console.log("USDC: ", USDC);
-        console.log("SWAP_ROUTER: ", address(SWAP_ROUTER));
-        console.log("COMET: ", address(COMET));
+        console.log("initiator: ", initiator);
+        initiator = tx.origin;
+
+        (uint256 totalCollateralBase, uint256 totalDebtBase, , , , ) = POOL
+            .getUserAccountData(initiator);
+        console.log("totalCollateralBase: ", totalCollateralBase);
+        console.log("totalDebtBase: ", totalDebtBase);
 
         // params: single+amountOutMinimum+path, bool+uint256+bytes
         AaveOperationParams memory aaveOperationParams = AaveOperationParams({
@@ -142,8 +146,12 @@ contract FlashLoan {
             path: aaveOperationParams.path
         });
 
-        uint256 amountOut = SwapLogic.swap(swapParams, false, SWAP_ROUTER);
+        console.log("begin to swap");
 
+        uint256 amountOut = SwapLogic.swap(swapParams, false, SWAP_ROUTER);
+        console.log("amountOut: ", amountOut);
+
+        console.log("end to swap");
         return leverageAAVEPos(Long, amountOut, initiator, 0);
     }
 
@@ -155,6 +163,7 @@ contract FlashLoan {
         address initiator,
         bytes calldata params
     ) external returns (bool) {
+        // initiator = tx.origin;
         // params: single+amountIn+path, bool+uint256+bytes+bytes4
         CompOperationParams memory compOperationParams = CompOperationParams({
             single: params.toBool(0),
@@ -165,13 +174,19 @@ contract FlashLoan {
 
         IERC20(Long).approve(address(COMET), amount);
         COMET.supplyTo(initiator, Long, amount);
-        COMET.collateralBalanceOf(initiator, Long);
+        // uint256 bal = COMET.collateralBalanceOf(initiator, Long);     
+        // console.log("bal: ", bal);
+        // console.log("3");
+        // console.log("initiator:", initiator);
+        // console.log("this:", address(this));
+        console.log("usdc:", USDC);
         COMET.withdrawFrom(
             initiator,
             address(this),
             USDC,
             compOperationParams.amountIn
         );
+
         IERC20(USDC).balanceOf(address(this));
 
         SwapLogic.SwapParams memory swapParams = SwapLogic.SwapParams({
@@ -208,6 +223,7 @@ contract FlashLoan {
         address initiator,
         bytes calldata params
     ) external returns (bool) {
+        initiator = tx.origin;
         // params: single+amountInMaximum+interestRateMode+deadline+v+r+s+path+selector,
         // bool+uint256+uint256+uint256+uint8+bytes32+bytes32+bytes+bytes4
         AaveRepayParams memory aaveRepayParams = AaveRepayParams({
@@ -291,6 +307,7 @@ contract FlashLoan {
         address initiator,
         bytes calldata params
     ) external returns (bool) {
+        initiator = tx.origin;
         // params: single+amountInMaximum+path+selector,
         // bool+uint256+bytes+bytes4
         CompRepayParams memory compRepayParams = CompRepayParams({
@@ -346,6 +363,8 @@ contract FlashLoan {
         address initiator,
         bytes calldata params
     ) external returns (bool) {
+        initiator = tx.origin;
+
         leverageAAVEPos(asset, amount, initiator, 0);
 
         // params: single+amountIn+deadline+v+r+s+path+selector,
@@ -422,6 +441,8 @@ contract FlashLoan {
         address initiator,
         bytes calldata params
     ) external returns (bool) {
+        initiator = tx.origin;
+
         // params: single+amountIn+path+selector,
         // bool+uint256+bytes+bytes4
         CompChangeParams memory compChangeParams = CompChangeParams({
@@ -506,6 +527,11 @@ contract FlashLoan {
         // approve pool to pull money form this to deposit
         IERC20(asset).approve(address(POOL), amount);
         POOL.supply(asset, amount, user, refer);
+        (uint256 totalCollateralBase, uint256 totalDebtBase, , , , ) = POOL
+            .getUserAccountData(user);
+        console.log("totalCollateralBase: ", totalCollateralBase);
+        console.log("totalDebtBase: ", totalDebtBase);
+
         return true;
     }
 

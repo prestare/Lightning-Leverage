@@ -137,7 +137,7 @@ export const processRoute = (route: SwapRoute, slippageTolerance: Percent, toTok
     if (exactOut) {
         const {inputAmount} = route.trade.swaps[0];
         mValue = route.trade.maximumAmountIn(slippageTolerance, inputAmount).quotient.toString();
-        console.log(`   You'll pay: ${inputAmount.toFixed()} of ${toToken.symbol}`);
+        console.log(`   You'll pay: ${inputAmount.toFixed()} of fromToken`);
         console.log(`   maximum Input Amount: ${mValue}`);
     } else {
         const {outputAmount} = route.trade.swaps[0];
