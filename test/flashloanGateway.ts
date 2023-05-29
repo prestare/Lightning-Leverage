@@ -222,7 +222,7 @@ describe("compDeposit", function () {
         return { signer, fakeSigner, flashLoanProxy, flashLoanGateway, depositAmount }
     }
 
-    it("deposit ETH, long WETH and short Dai", async function () {
+    it("deposit WETH, long WETH and short Dai", async function () {
         const { signer, flashLoanProxy, flashLoanGateway, depositAmount } = await loadFixture(beforeCompFixture);
 
         // deposit ETH and get WETH
@@ -268,7 +268,7 @@ describe("compDeposit", function () {
         console.log("gas: ", gas);
     });
 
-    it("deposit WETH, long WETH and short Dai", async function () {
+    it("deposit ETH, long WETH and short Dai", async function () {
         const { signer, flashLoanProxy, flashLoanGateway, depositAmount } = await loadFixture(beforeCompFixture);
 
         const leverage = 4;
