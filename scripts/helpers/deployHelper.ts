@@ -9,7 +9,7 @@ import {
     WETH_GATEWAY_ADDRESS,
 } from '../address';
 import { ethers } from 'ethers';
-
+import { ContractNames, deployAndSave } from './contracts-helps';
 
 /**
  * Deploys all the contracts for flashLoan and returns the flashLoanProxy contract object.
@@ -29,28 +29,27 @@ export const deployAll = async (signer: SignerWithAddress) => {
 export const deployFlashLoanProxy = async (signer: SignerWithAddress, implementation: string) => {
     const flashLoanProxyFact = await hre.ethers.getContractFactory("FlashLoanProxy");
     const data = encodeInitData();
-    let flashLoanProxy = await flashLoanProxyFact.connect(signer).deploy(implementation, data);
-    await flashLoanProxy.deployed();
-    console.log(
-        `flashLoanProxy deployed to ${flashLoanProxy.address}`
-    );
-
-    return flashLoanProxy;
+    const flashLoanProxy = await flashLoanProxyFact.connect(signer).deploy(implementation, data);
+    
+    return deployAndSave(
+        flashLoanProxy,
+        ContractNames.FlashLoanProxy
+    )
 }
 
 export const deployFlashLoan = async (signer: SignerWithAddress, pathLib: ethers.Contract, swapLogic: ethers.Contract) => {
-    let flashLoanFact = await hre.ethers.getContractFactory("FlashLoan", {
+    const flashLoanFact = await hre.ethers.getContractFactory("FlashLoan", {
         libraries: {
             Path: pathLib.address,
             SwapLogic: swapLogic.address
         }
     });
-    var flashLoan = await flashLoanFact.connect(signer).deploy();
-    await flashLoan.deployed();
-    console.log(
-        `flash loan deployed to ${flashLoan.address}`
-    );
-    return flashLoan;
+    const flashLoan = await flashLoanFact.connect(signer).deploy();
+    
+    return deployAndSave(
+        flashLoan,
+        ContractNames.FlashLoan
+    )
 }
 
 export const deployFlashLoanGateway = async (signer: SignerWithAddress, pathLib: ethers.Contract, swapLogic: ethers.Contract) => {
@@ -61,22 +60,21 @@ export const deployFlashLoanGateway = async (signer: SignerWithAddress, pathLib:
         }
     });
     let flashLoanGateway = await flashLoanGatewayFact.connect(signer).deploy(poolAddressProvider, V3_SWAP_ROUTER_ADDRESS, cUSDC_comet_ADDRESS, WETH_GATEWAY_ADDRESS, bulker_ADDRESS);
-    await flashLoanGateway.deployed();
-    console.log(
-        `flashLoanGateway deployed to ${flashLoanGateway.address}`
-    );
-
-    return flashLoanGateway;
+    
+    return deployAndSave(
+        flashLoanGateway,
+        ContractNames.FlashLoanGateway
+    )
 }
 
 export const deployPathLibrary = async (signer: SignerWithAddress) => {
     const pathLibraryFact = await hre.ethers.getContractFactory("Path");
     const pathLibrary = await pathLibraryFact.connect(signer).deploy();
-    await pathLibrary.deployed();
-    console.log(
-        `Path library deployed to ${pathLibrary.address}`
-    );
-    return pathLibrary;
+    
+    return deployAndSave(
+        pathLibrary,
+        ContractNames.Path
+    )
 }
 
 export const deploySwapLogicLibrary = async (signer: SignerWithAddress, pathLib: ethers.Contract) => {
@@ -86,11 +84,11 @@ export const deploySwapLogicLibrary = async (signer: SignerWithAddress, pathLib:
         }
     });
     const swapLogicLibrary = await swapLogicLibraryFact.connect(signer).deploy();
-    await swapLogicLibrary.deployed();
-    console.log(
-        `SwapLogic library deployed to ${swapLogicLibrary.address}`
-    );
-    return swapLogicLibrary;
+    
+    return deployAndSave(
+        swapLogicLibrary,
+        ContractNames.SwapLogic
+    )
 }
 
 const encodeInitData = () => {
