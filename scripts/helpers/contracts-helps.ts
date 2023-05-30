@@ -7,6 +7,7 @@ import low from 'lowdb';
 const hre: HardhatRuntimeEnvironment = require('hardhat');
 
 export const getDb = () => low(new FileSync('./deployed-contracts-flashloan.json'));
+export const getDeployingDb = () => low(new FileSync('./contracts-for-deploying.json'));
 
 export enum ContractNames {
     Path = 'Path',
@@ -43,6 +44,22 @@ export const getDbProperty = async (contractId: string, network: string) => {
     // await getDb().read();
     // console.log(network);
     const result = getDb().get(`${contractId}.${network}`).value()
+    // console.log(getDb().get(`ReserveLogic.${network}`).value());
+    return result
+}
+
+export const getDeployingDbProperty = async (contractId: string, network: string) => {
+    // await getDb().read();
+    // console.log(network);
+    const result = getDeployingDb().get(`${contractId}.${network}`).value()
+    // console.log(getDb().get(`ReserveLogic.${network}`).value());
+    return result
+}
+
+export const getDeployingAddress = async (contractId: string, network: string) => {
+    // await getDb().read();
+    // console.log(network);
+    const result = (await getDeployingDbProperty(contractId, network)).address;
     // console.log(getDb().get(`ReserveLogic.${network}`).value());
     return result
 }

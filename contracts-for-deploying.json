@@ -1,0 +1,86 @@
+{
+  "Bulker": {
+    "mainnet": {
+      "address": "0x74a81F84268744a40FEBc48f8b812a1f188D80C3",
+      "deployer": ""
+    },
+    "hardhat": {
+      "address": "0x74a81F84268744a40FEBc48f8b812a1f188D80C3",
+      "deployer": ""
+    },
+    "goerli": {
+      "address": "0xf82AAB8ae0E7F6a2ecBfe2375841d83AeA4cb9cE",
+      "deployer": ""
+    }
+  },
+  "CometUSDC": {
+    "mainnet": {
+      "address": "0xc3d688B66703497DAA19211EEdff47f25384cdc3",
+      "deployer": ""
+    },
+    "hardhat": {
+      "address": "0xc3d688B66703497DAA19211EEdff47f25384cdc3",
+      "deployer": ""
+    },
+    "goerli": {
+      "address": "0x3EE77595A8459e93C2888b13aDB354017B198188",
+      "deployer": ""
+    }
+  },
+  "PoolAddressProvide": {
+    "mainnet": {
+      "address": "0x2f39d218133AFaB8F2B819B1066c7E434Ad94E9e",
+      "deployer": ""
+    },
+    "hardhat": {
+      "address": "0x2f39d218133AFaB8F2B819B1066c7E434Ad94E9e",
+      "deployer": ""
+    },
+    "goerli": {
+      "address": "0xC911B590248d127aD18546B186cC6B324e99F02c",
+      "deployer": ""
+    }
+  },
+  "USDCForComp": {
+    "mainnet": {
+      "address": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+      "deployer": ""
+    },
+    "hardhat": {
+      "address": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+      "deployer": ""
+    },
+    "goerli": {
+      "address": "0x07865c6E87B9F70255377e024ace6630C1Eaa37F",
+      "deployer": ""
+    }
+  },
+  "SwapRouterV3": {
+    "mainnet": {
+      "address": "0xE592427A0AEce92De3Edee1F18E0157C05861564",
+      "deployer": ""
+    },
+    "hardhat": {
+      "address": "0xE592427A0AEce92De3Edee1F18E0157C05861564",
+      "deployer": ""
+    },
+    "goerli": {
+      "address": "0xE592427A0AEce92De3Edee1F18E0157C05861564",
+      "deployer": ""
+    }
+  },
+  "WETHGateWay": {
+    "mainnet": {
+      "address": "0xD322A49006FC828F9B5B37Ab215F99B4E5caB19C",
+      "deployer": ""
+    },
+    "hardhat": {
+      "address": "0xD322A49006FC828F9B5B37Ab215F99B4E5caB19C",
+      "deployer": ""
+    },
+    "goerli": {
+      "address": "0x2A498323aCaD2971a8b1936fD7540596dC9BBacD",
+      "deployer": ""
+    }
+  }
+}
